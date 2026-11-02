@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-02T00:00:00Z",
+  "title": "Design System: monkeycode",
+  "extensions": {
+    "colorMeta": {
+      "main": { "role": "primary", "displayName": "Serika yellow" },
+      "background": { "role": "neutral", "displayName": "Charcoal" },
+      "sub-alt": { "role": "neutral", "displayName": "Alternate charcoal" },
+      "sub": { "role": "neutral", "displayName": "Muted gray" },
+      "text": { "role": "neutral", "displayName": "Warm gray text" },
+      "error": { "role": "secondary", "displayName": "Error red" }
+    },
+    "typographyMeta": {
+      "wordmark": { "displayName": "Wordmark", "purpose": "Locally bundled Lexend Deca 400; 32px desktop, 28/25px at narrow widths." },
+      "body": { "displayName": "Interface", "purpose": "Locally bundled Roboto Mono 400 for controls, dialogs and labels." },
+      "code": { "displayName": "Practice code", "purpose": "Unwrapped, whitespace-preserving target; 24/28/32px settings, ligatures disabled." },
+      "metric": { "displayName": "Primary result", "purpose": "64px WPM and accuracy values; 48px on mobile." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "interface-state", "value": "color 125ms, background-color 125ms, opacity 125ms", "purpose": "Controls and active chrome; reduced-motion preferences disable transitions." },
+      { "name": "smooth-caret", "value": "left 100ms ease, top 100ms ease", "purpose": "Optional caret movement; reduced-motion preferences disable it." },
+      { "name": "idle-caret", "value": "caret-blink 1s infinite", "purpose": "Idle caret blink; reduced-motion preferences disable animation." }
+    ],
+    "breakpoints": [
+      { "name": "compact-labels-and-results", "value": "1000px" },
+      { "name": "stacked-practice-controls", "value": "720px" },
+      { "name": "stacked-header-navigation", "value": "480px" },
+      { "name": "short-viewport", "value": "700px height" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Solid import action",
+      "kind": "button",
+      "refersTo": "button-solid",
+      "description": "Full-width alternate-surface action; text/background inversion on hover.",
+      "html": "<button class=\"ds-solid\">start test</button>",
+      "css": ".ds-solid{font:400 14px 'Roboto Mono',monospace;border:0;border-radius:8px;padding:12px;width:100%;background:var(--sub-alt-color,#2c2e31);color:var(--text-color,#d1d0c5);cursor:pointer;transition:color 125ms,background-color 125ms}.ds-solid:hover{background:var(--text-color,#d1d0c5);color:var(--bg-color,#323437)}.ds-solid:focus-visible{outline:2px solid var(--main-color,#e2b714);outline-offset:4px}"
+    },
+    {
+      "name": "Ghost restart action",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Muted icon control brightens on hover, without a filled card.",
+      "html": "<button class=\"ds-ghost\" aria-label=\"Restart test\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M3 11a9 9 0 1 1 2 7M3 4v7h7\"/></svg></button>",
+      "css": ".ds-ghost{display:inline-flex;align-items:center;justify-content:center;width:40px;height:36px;padding:8px;border:0;border-radius:8px;background:none;color:var(--sub-color,#646669);cursor:pointer;transition:color 125ms}.ds-ghost:hover{color:var(--text-color,#d1d0c5)}.ds-ghost:focus-visible{outline:2px solid var(--main-color,#e2b714);outline-offset:4px}"
+    },
+    {
+      "name": "Custom title field",
+      "kind": "input",
+      "description": "Monospaced alternate-surface field with yellow caret and explicit focus outline.",
+      "html": "<label class=\"ds-label\">name<input class=\"ds-field\" value=\"My code\" /></label>",
+      "css": ".ds-label{display:flex;flex-direction:column;gap:8px;font:400 14px 'Roboto Mono',monospace;color:var(--text-color,#d1d0c5)}.ds-field{font:inherit;border:0;border-radius:8px;padding:12px;background:var(--sub-alt-color,#2c2e31);color:var(--text-color,#d1d0c5);caret-color:var(--main-color,#e2b714)}.ds-field:focus-visible{outline:2px solid var(--main-color,#e2b714);outline-offset:3px}"
+    },
+    {
+      "name": "Configuration group",
+      "kind": "custom",
+      "refersTo": "config-group",
+      "description": "Compact 39px tonal group; selection is yellow text, not a separate filled pill.",
+      "html": "<div class=\"ds-config\" aria-label=\"Practice mode\"><button class=\"ds-selected\" aria-pressed=\"true\">generated</button><button aria-pressed=\"false\">solutions</button><button aria-pressed=\"false\">custom</button></div>",
+      "css": ".ds-config{display:inline-flex;align-items:center;gap:4px;min-height:39px;padding:0 12px;border-radius:8px;background:var(--sub-alt-color,#2c2e31)}.ds-config button{font:400 12px/15px 'Roboto Mono',monospace;padding:12px;border:0;border-radius:8px;background:none;color:var(--sub-color,#646669);cursor:pointer;transition:color 125ms}.ds-config button.ds-selected{color:var(--main-color,#e2b714)}.ds-config button:hover{color:var(--text-color,#d1d0c5)}.ds-config button:focus-visible{outline:2px solid var(--main-color,#e2b714);outline-offset:4px}"
+    },
+    {
+      "name": "Unboxed typing surface",
+      "kind": "custom",
+      "description": "Three-line viewport with preserved whitespace, automatic indentation and underlined errors; no line numbers.",
+      "html": "<div class=\"ds-viewport\"><pre class=\"ds-code\"><span class=\"ds-correct\">def search(items):</span>\n    <span class=\"ds-correct\">return </span><span class=\"ds-wrong\">v</span><span class=\"ds-caret\"></span>alue\n</pre></div>",
+      "css": ".ds-viewport{height:153px;overflow:auto;background:var(--bg-color,#323437)}.ds-code{margin:0;font:400 32px/48px 'Roboto Mono',monospace;white-space:pre;font-variant-ligatures:none;color:var(--sub-color,#646669)}.ds-correct{color:var(--text-color,#d1d0c5)}.ds-wrong{color:var(--error-color,#ca4754);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}.ds-caret{display:inline-block;width:3px;height:38px;vertical-align:middle;border-radius:2px;background:var(--main-color,#e2b714)}"
+    },
+    {
+      "name": "Command navigation row",
+      "kind": "nav",
+      "description": "Searchable command-line action rows invert on hover or keyboard focus.",
+      "html": "<nav class=\"ds-commands\" aria-label=\"Command preview\"><button>restart test</button><button>next snippet</button><button>local history</button></nav>",
+      "css": ".ds-commands{display:grid;background:var(--bg-color,#323437);padding:8px}.ds-commands button{font:400 12px 'Roboto Mono',monospace;min-height:29px;padding:6px 12px;text-align:left;border:0;border-radius:4px;background:none;color:var(--sub-color,#646669);cursor:pointer;transition:color 125ms,background-color 125ms}.ds-commands button:hover,.ds-commands button:focus-visible{background:var(--text-color,#d1d0c5);color:var(--bg-color,#323437);outline:0}"
+    },
+    {
+      "name": "Flat result metrics",
+      "kind": "custom",
+      "description": "Primary WPM/accuracy hierarchy; illustrative preview values, not collected run evidence.",
+      "html": "<div class=\"ds-results\"><div><span>wpm</span><strong>72</strong></div><div><span>acc</span><strong>98%</strong></div></div>",
+      "css": ".ds-results{display:flex;gap:32px;padding:16px;background:var(--bg-color,#323437);font:400 32px 'Roboto Mono',monospace}.ds-results span{display:block;color:var(--sub-color,#646669);line-height:32px}.ds-results strong{display:block;font-size:64px;font-weight:400;line-height:80px;color:var(--main-color,#e2b714)}"
+    },
+    {
+      "name": "Dialog shell",
+      "kind": "custom",
+      "refersTo": "dialog",
+      "description": "Native modal visual shell; preview is static and does not implement modal behavior.",
+      "html": "<section class=\"ds-dialog\" aria-label=\"Settings preview\"><h2>settings</h2><p>code size</p><div class=\"ds-options\"><button>24</button><button>28</button><button class=\"ds-active\">32</button></div></section>",
+      "css": ".ds-dialog{max-width:552px;padding:24px;border-radius:16px;background:var(--bg-color,#323437);color:var(--text-color,#d1d0c5);font:400 14px/1.65 'Roboto Mono',monospace}.ds-dialog h2{font-size:24px;font-weight:400;line-height:1.25;margin:0 0 20px}.ds-dialog p{color:var(--sub-color,#646669)}.ds-options{display:flex;gap:8px}.ds-options button{font:inherit;min-width:48px;padding:8px 12px;border:0;border-radius:8px;background:var(--sub-alt-color,#2c2e31);color:var(--sub-color,#646669);cursor:pointer}.ds-options button.ds-active{background:var(--main-color,#e2b714);color:var(--bg-color,#323437)}.ds-options button:hover{color:var(--text-color,#d1d0c5)}.ds-options button:focus-visible{outline:2px solid var(--main-color,#e2b714);outline-offset:4px}"
+    }
+  ],
+  "narrative": {
+    "overview": "The implemented visual reference is live Monkeytype, with public source pinned to revision 5478cd701df9e6a7d4611004ec84bef8999b3aaa. This is an intentionally close independent reproduction of its flat layout and interaction style, adapted to Python and Java transcription. No upstream GPL code or assets were copied; Monkeycode retains its own React engine, icons and wordmark. It is not affiliated with Monkeytype.\n\nThe practice surface is Operate: configure, type, review and repeat. The code sits directly on the page, with quiet surrounding controls rather than a hero or boxed workspace. Secondary tasks occupy dialogs.",
+    "keyCharacteristics": [
+      "Charcoal and warm gray with restrained yellow emphasis.",
+      "Monospaced controls, code and results; a rounded sans-serif wordmark.",
+      "Three-line code viewport, custom caret and fading chrome during active typing.",
+      "Flat result hierarchy with a chart of actual speed samples."
+    ],
+    "rules": [],
+    "dos": [
+      "**Do** use the implemented theme roles and locally bundled fonts.",
+      "**Do** preserve underlined errors, visible keyboard focus and accessible dialog controls.",
+      "**Do** keep code unwrapped, horizontally scrollable and directly on the page.",
+      "**Do** display real result samples and respect reduced-motion preferences."
+    ],
+    "donts": [
+      "**Don't** reintroduce the rejected hero, card-based workspace or line numbers.",
+      "**Don't** add gradients, shadows or remote font dependencies.",
+      "**Don't** invent metrics, corpus coverage or unsupported navigation destinations.",
+      "**Don't** copy upstream GPL implementation or assets to reproduce the reference."
+    ]
+  }
+}
