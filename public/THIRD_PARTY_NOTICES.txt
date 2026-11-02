@@ -1,0 +1,112 @@
+THIRD-PARTY SOFTWARE NOTICES
+
+Bundled interface fonts (SIL Open Font License 1.1):
+- Roboto Mono: licenses/roboto-mono.txt
+- Lexend Deca: licenses/lexend-deca.txt
+
+React runtime MIT notices:
+- licenses/react.txt
+- licenses/react-dom.txt
+- licenses/scheduler.txt
+
+Visual reference: https://monkeytype.com
+Implementation research: https://github.com/monkeytypegame/monkeytype/tree/5478cd701df9e6a7d4611004ec84bef8999b3aaa
+Monkeycode independently reproduces the public interface's appearance and
+interaction patterns. No Monkeytype implementation code or brand assets are
+included. Monkeycode is not affiliated with Monkeytype.
+
+neetcode-gh/leetcode solution implementations
+Repository: https://github.com/neetcode-gh/leetcode
+Pinned revision: 8fed5f7daa6a517e375a0562d876e4a72dfdafb8
+Revision: https://github.com/neetcode-gh/leetcode/commit/8fed5f7daa6a517e375a0562d876e4a72dfdafb8
+License source: https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/LICENSE
+
+The solution snippets in src/solutions.ts reproduce implementations from the
+files listed below. The original implementations remain attributed to the
+upstream copyright holder and contributors, not to Monkeycode. No problem
+statements are reproduced. App-authored titles, brief technique descriptions,
+identifiers, and presentation metadata are not upstream source code.
+
+Included source files (each supplies both a method and a full-class excerpt):
+
+Two Sum
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0001-two-sum.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0001-two-sum.java
+
+Longest Substring Without Repeating Characters
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0003-longest-substring-without-repeating-characters.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0003-longest-substring-without-repeating-characters.java
+
+Median of Two Sorted Arrays
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0004-median-of-two-sorted-arrays.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0004-median-of-two-sorted-arrays.java
+
+Container With Most Water
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0011-container-with-most-water.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0011-container-with-most-water.java
+
+Longest Common Prefix
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0014-longest-common-prefix.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0014-longest-common-prefix.java
+
+Remove Duplicates from Sorted Array
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0026-remove-duplicates-from-sorted-array.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0026-remove-duplicates-from-sorted-array.java
+
+Search in Rotated Sorted Array
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0033-search-in-rotated-sorted-array.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0033-search-in-rotated-sorted-array.java
+
+Combination Sum
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/python/0039-combination-sum.py
+https://github.com/neetcode-gh/leetcode/blob/8fed5f7daa6a517e375a0562d876e4a72dfdafb8/java/0039-combination-sum.java
+
+Transformations for typing practice:
+- Stored the selected source text as TypeScript string literals. Normalized
+  outer final newlines and trailing whitespace; retained upstream identifiers,
+  algorithm bodies, code comments, and internal indentation.
+- Full Python excerpts retain the Solution class and prepend
+  "from typing import List" wherever the original annotations require List.
+  The string-only sliding-window implementation needs no additional import.
+- Full Java excerpts retain the Solution wrapper and prepend only the needed
+  java.util imports: HashMap for Two Sum, ArrayList and List for Longest
+  Substring Without Repeating Characters and Combination Sum. The other Java
+  excerpts use java.lang types and need no explicit imports.
+- Method excerpts remove only the surrounding Solution class and one level of
+  four-space indentation, trimming outer empty lines. Leading source comments
+  remain. All class members are retained together, including Combination Sum's
+  Java backtrack helper; Python's nested dfs helper remains in its method.
+  Python method excerpts also retain the required typing import. Java method
+  excerpts are members intended for a containing class with the corresponding
+  imports; they are not complete compilation units.
+- The Java Median of Two Sorted Arrays excerpt selects the active optimized
+  implementation, including its leading optimized-solution and complexity
+  comments. The preceding, commented-out brute-force alternative is omitted.
+- No algorithm rewrites, renamed variables, added examples, execution harnesses,
+  extra padding, or difficulty claims were introduced. Implementations retain
+  their upstream input assumptions and behavior. Full means a Solution class
+  plus its necessary imports, not a standalone executable or command-line app.
+
+The following upstream license is reproduced in full:
+
+MIT License
+
+Copyright (c) 2022 neetcode-gh
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
