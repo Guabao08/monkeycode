@@ -1,10 +1,10 @@
 # monkeycode
 
-A desktop-first code-transcription practice app built with React, TypeScript and Vite. Practice Python or Java without accounts, a backend, or code execution.
+A desktop-first code-transcription practice app built with React, TypeScript and Vite. Python/Java typing works entirely in the browser. An optional invite-protected Node API executes the first solving exercise through OnlineCompiler; the solving screen is not integrated yet.
 
 ## Run locally
 
-Use **Node.js 22.12+** and npm:
+Use **Node.js 22.23+** and npm:
 
 ```sh
 npm install
@@ -14,7 +14,7 @@ npm run dev
 Open the local URL printed by Vite. Other commands:
 
 ```sh
-npm test          # engine and content tests
+npm test          # typing, content, HTTP/SQLite and provider-contract tests
 npm run build    # TypeScript checks and production bundle in dist/
 npm run preview  # serve the production bundle locally after building
 ```
@@ -23,13 +23,13 @@ Python 3 and a JDK are used only for maintainer-side sample validation and the e
 
 ## Practice exercise contracts
 
-The first solving exercise is implemented as content and grading material, **not yet as an in-app mode or hosted execution service**. The current typing interface is unchanged. Practice remains the priority: the contract adds no prerequisite lessons, mandatory approach notes, unlocks, or enforced waiting periods.
+The first solving exercise has content, grading material and a protected hosted-execution backend, **not yet an in-app mode**. The current typing interface is unchanged. Practice remains the priority: no prerequisite lessons, mandatory approach notes, unlocks, or enforced waiting periods.
 
 - `src/learning/types.ts`: public exercise, attempt-condition, assistance, feedback, and execution-failure contracts. Functional correctness and approach evidence are separate; neither passing tests nor answering reasoning questions certifies implementation complexity.
 - `src/learning/first-at-least.ts`: original sorted-array problem, explicit constraints, examples, Python/Java method signatures, and time/space requirements. Learners supply methods and helpers, not console parsing or a full program.
-- `server/learning/first-at-least.ts`: private grading fixtures, reference implementations, hints, explanation, and authored reasoning checks. This is maintainer/server material, not a running backend; never import it into the browser entry. “Private” means withheld from normal learner feedback, not secret from someone reading this repository.
+- `server/learning/first-at-least.ts`: private grading fixtures, reference implementations, hints, explanation, and authored reasoning checks. Never import this server material into the browser entry. “Private” means withheld from normal learner feedback, not secret from someone reading this repository.
 
-Run feedback includes expected and actual public-example results. Submit feedback contains only failure categories. A separate counterexample operation reveals the first failing private case; a future execution endpoint must record assistance before returning it. Missing/extra execution results are protocol failures, not wrong-answer grades. Attempt conditions share exposure identity across languages; storage and assistance-event enforcement are not implemented yet.
+Run feedback includes expected and actual public-example results when output is a valid numeric array. Submit first checks those examples, then returns private failure categories without private inputs or diagnostics. Malformed learner output is a wrong answer; incomplete or invalid provider responses are service failures, not learner failures. The separate counterexample helper is not exposed by the API: assistance-event enforcement and persistent learning progress remain unimplemented. Passing tests never certifies implementation complexity.
 
 Validate the authored implementations locally with Python 3 and a JDK on PATH:
 
@@ -37,9 +37,70 @@ Validate the authored implementations locally with Python 3 and a JDK on PATH:
 npm run check:exercise
 ```
 
-This command compiles/runs both reference implementations and correct linear alternatives against 1,780 cases each, including exhaustive small sorted arrays, duplicates, empty arrays, integer extremes, and the maximum input length. It also verifies rejection of a plausible strict-greater-than boundary mistake in both languages. A linear solution passes functional grading without satisfying the stated logarithmic-time requirement. Local verification used Python 3.14.0 and javac 26.0.2.1; hosted runtime versions remain unselected.
+This command compiles/runs both reference implementations and correct linear alternatives against 1,780 cases each, including exhaustive small sorted arrays, duplicates, empty arrays, integer extremes, and the maximum input length. It also verifies rejection of a plausible strict-greater-than boundary mistake in both languages. A linear solution passes functional grading without satisfying the stated logarithmic-time requirement. Local verification used Python 3.14.0 and javac 26.0.2.1. Live hosted reference submissions also passed using the adapter's `python-3.14` and `openjdk-25` runtimes.
 
-The checker executes **only repository-authored code**, uses temporary files removed on exit, and has process/output bounds. It is **not a sandbox**: never expose it as an endpoint or use it to execute untrusted submissions. No learner code is uploaded, no provider is provisioned, and no application source-privacy behavior changes.
+The local checkers execute **only repository-authored code**, use temporary files removed on exit, and have process/output bounds. They are **not sandboxes**: never expose them as endpoints or use them to execute untrusted submissions. They do not upload code. `npm run check:execution` additionally exercises the exact production wrappers with the public bundle and all eight private categories, including reconstruction of the full 100,000-element input.
+
+## Optional hosted execution API
+
+`server/main.ts` runs the API; learner code executes only on [OnlineCompiler's native test service](https://onlinecompiler.io/docs/run-tests), never in a local child process. Deployment requires a provider account/key and explicit acceptance of its [privacy policy](https://onlinecompiler.io/privacy). The provider retains submitted source, input and output in account execution history while the account is active: **this is not zero-retention execution**. Do not submit secrets. Protect provider-account access as well as the API key.
+
+1. Copy `.env.example` to the ignored `.env` file and configure the server-only key. Never put credentials in `VITE_` variables.
+2. Review provider retention, then set `ONLINECOMPILER_RETENTION_ACCEPTED=true`.
+3. Run `npm run invite:create -- seat-1`. Securely share its raw token with that invitee; configure only the printed SHA-256 digest in `MONKEYCODE_INVITES_JSON`, for example `{"seat-1":"<64-hex digest>"}`. Configure 1–10 unique invites. The generator deliberately prints the secret once; do not paste it into logs or commit it.
+4. Set `MONKEYCODE_ALLOWED_ORIGIN` to the exact frontend origin. Default: `http://127.0.0.1:5173` (not `http://localhost:5173`). Set `MONKEYCODE_EXECUTION_ENABLED=true` only when ready to accept submissions.
+5. Run `npm run start:api` (or `npm run dev:api` for restart-on-change development). Missing key, retention acceptance or valid invites prevents startup. Execution defaults to disabled; changing this switch requires restarting the process.
+
+Default listener: `127.0.0.1:3001`. Production needs a TLS reverse proxy and **one API process on one host with a persistent writable SQLite volume** at `MONKEYCODE_DB_PATH` (default `.data/execution.sqlite`). Do not horizontally scale this store or place it on a shared network filesystem. Node 22's built-in SQLite currently emits an experimental-feature warning. The Vite build remains a static frontend, not an API deployment.
+
+### HTTP contract
+
+All `/api/` requests require `Authorization: Bearer <invite token>`. Browser requests require the exact allowed origin; there are no authentication cookies or wildcard CORS. CLI clients may omit `Origin`. API responses are non-cacheable.
+
+- `GET /healthz`: minimal liveness response, not a provider-readiness check.
+- `GET /api/exercises/first-at-least`: public statement, signatures and examples only.
+- `POST /api/jobs`: JSON with exactly `exerciseId`, `exerciseVersion`, `language`, `action`, `code`; returns HTTP 202 with a job ID. Only exercise `first-at-least`, version `1`, Python/Java and `run`/`submit` are accepted.
+- `GET /api/jobs/:id`: owner-only queued/running/completed state and result; another invite sees 404. Poll this ID rather than resubmitting.
+
+Example body (Python method, not a full console program):
+
+```json
+{
+  "exerciseId": "first-at-least",
+  "exerciseVersion": 1,
+  "language": "python",
+  "action": "run",
+  "code": "def first_at_least(values, target):\n    for index, value in enumerate(values):\n        if value >= target:\n            return index\n    return len(values)"
+}
+```
+
+Java submissions are members of the supplied `Solution` class, including any helpers; do not supply a `Main` class or console parser. Bodies are capped at 40 KiB and submitted source at 32 KiB UTF-8, with NUL rejected. Public feedback can include bounded compiler/runtime messages. Private feedback contains categories only, including for private runtime/resource failures; no private diagnostics are returned. Results distinguish passed, wrong-answer, compile-error, runtime-error, resource-limit and service-error, and always report `implementationComplexityVerified: false`. These categories preserve native provider verdicts: Java compiles inside its source-launcher run, so a compilation failure can return `runtime-error` with compiler diagnostics. Python syntax errors also return `runtime-error`. Do not infer a different category by parsing learner-controlled stderr; see the provider's [startup and verdict contract](https://onlinecompiler.io/docs/run-tests).
+
+### Budgets, recovery and local retention
+
+Run bundles the three visible examples into **one provider run**. Submit reserves **nine provider runs**: that public bundle plus eight private category bundles covering all thirteen private cases. It stops before private execution if public examples fail. This differs from one provider execution per button click.
+
+Default limits are 30 admitted jobs/invite/day, 300 jobs/day globally, 30 reserved provider runs per rolling minute, 90,000 per UTC calendar month, and one active job globally. Day limits reset at UTC midnight. Limits are atomically persisted before execution. Failed admission spends nothing; admitted reservations are conservative and are **not refunded**, even after an early failure. Use a dedicated provider account/key or account for other consumers separately; this database cannot observe their usage.
+
+There are no automatic retries, fallback runners, restart replays or remote cancellation guarantees. Ambiguous service failures and unfinished jobs on recovery impose a 120-second capacity quarantine; recovery marks unfinished jobs unavailable rather than running them again. Do not delete/reset the database to clear limits or deploy multiple copies against one provider account without a separate shared limiter.
+
+Submitted source is held only for the active in-process execution and is not written to application logs or SQLite. Public diagnostic messages can quote submitted source; they are owner-only, key-redacted, held only in RAM (at most 8 KiB/job, up to 24 hours), and disappear after restart. Durable job results contain only sanitized status, public numeric/boolean feedback or private categories; completed records expire after 24 hours. Current aggregate budget counters survive result expiry and restart. Proxy/hosting logging must also avoid request bodies and authorization headers.
+
+### Verification and deployment gate
+
+```sh
+npm test
+npm run build
+npm run check:exercise    # local authored code; Python/JDK required
+npm run check:execution   # local production harness smoke; Python/JDK required
+```
+
+Local checks passed, including actual Python/Java execution. HTTP tests use a controlled executor and temporary SQLite; provider-contract tests use controlled transport. Separately, live acceptance verified Python and Java reference submissions, a functionally correct Python linear submission, rejection of the Python boundary mistake, and an invalid Java method reported as `runtime-error` with compiler diagnostics. The initial smoke command expected `compile-error` for that final case and failed; its expectation was corrected to match Java's source-launcher behavior. All five completed jobs were then verified through authenticated HTTP without resubmitting them. This proves those hosted paths, not every provider failure or production deployment.
+
+After configuring a real account, retention acceptance, enabled API and invite, set `MONKEYCODE_SMOKE_TOKEN` securely in the shell and run `npm run check:hosted` against that running API (`MONKEYCODE_SMOKE_URL` optionally selects another HTTPS API origin). This opt-in command submits only repository-authored programs, runs five sequential jobs and reserves up to **29 provider runs**. Leave minute-budget headroom and inspect any ambiguous job before trying again; the script never automatically resubmits.
+
+Before production: deploy the single-process persistent API behind TLS, verify deployment-secret/logging configuration, then integrate and exercise the solving editor, Run/Submit controls and local attempt/assistance state. The provider is configured for local acceptance; no production deployment or learner-facing solving screen was provisioned by this backend change. Remove `MONKEYCODE_SMOKE_TOKEN` from `.env` after verification if it was added there; retain the invite token securely for later authenticated access.
+
 
 ## Practice modes
 
