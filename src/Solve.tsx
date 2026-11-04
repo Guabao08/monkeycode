@@ -58,6 +58,7 @@ export default function Solve({ active }: { active: boolean }) {
   const [pollStopped, setPollStopped] = useState(false);
   const [jobUnavailable, setJobUnavailable] = useState(false);
   const [pollVersion, setPollVersion] = useState(0);
+  const [liveJobId, setLiveJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobView["status"]>("queued");
   const [result, setResult] = useState<ShownResult | null>(null);
   const activeSnapshot = useRef<Snapshot | null>(initial.progress.pending ? {
@@ -68,6 +69,7 @@ export default function Solve({ active }: { active: boolean }) {
   const postingRef = useRef(false);
   const mounted = useRef(false);
   const connectionRequest = useRef<AbortController | null>(null);
+  const executionRequest = useRef<AbortController | null>(null);
   const connectionGeneration = useRef(0);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function Solve({ active }: { active: boolean }) {
       mounted.current = false;
       connectionGeneration.current += 1;
       connectionRequest.current?.abort();
+      executionRequest.current?.abort();
     };
   }, []);
 
@@ -110,7 +113,7 @@ export default function Solve({ active }: { active: boolean }) {
   useEffect(() => {
     const pending = progress.pending;
     const token = verifiedToken;
-    if (!pending || !token || pollStopped) return;
+    if (!pending || !token || pollStopped || liveJobId === pending.id) return;
     const controller = new AbortController();
     let stopped = false;
     let timer: number | undefined;
@@ -140,11 +143,14 @@ export default function Solve({ active }: { active: boolean }) {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [progress.pending, verifiedToken, pollVersion, pollStopped, finishJob]);
+  }, [progress.pending, verifiedToken, pollVersion, pollStopped, liveJobId, finishJob]);
 
   function invalidateConnection(clearInvite = false) {
     connectionGeneration.current += 1;
     connectionRequest.current?.abort();
+    executionRequest.current?.abort();
+    executionRequest.current = null;
+    setLiveJobId(null);
     setConnecting(false);
     setVerifiedToken(null);
     setConnectionNotice("");
@@ -209,16 +215,30 @@ export default function Solve({ active }: { active: boolean }) {
     };
     activeSnapshot.current = snapshot;
     setPreviouslySeen(true);
+    const controller = new AbortController();
+    executionRequest.current = controller;
     try {
-      const job = await createJob(verifiedToken, {
+      const { job, completion } = await createJob(verifiedToken, {
         exerciseId: "first-at-least", exerciseVersion: 1, language, action, code,
-      });
+      }, controller.signal);
       if (!mounted.current) return;
       const pending: PendingAttempt = {
         id: job.id, createdAt: job.createdAt, action, conditions: snapshot.conditions,
       };
+      setLiveJobId(job.id);
       changeProgress({ ...progressRef.current, pending });
       finishJob(job, pending, snapshot);
+      void completion.then(completed => {
+        if (!mounted.current || executionRequest.current !== controller || controller.signal.aborted) return;
+        finishJob(completed, pending, snapshot);
+      }).catch(error => {
+        if (!mounted.current || executionRequest.current !== controller || controller.signal.aborted) return;
+        setExecutionNotice(`${safeError(error)} Recovering the saved job by ID.`);
+      }).finally(() => {
+        if (executionRequest.current !== controller) return;
+        executionRequest.current = null;
+        if (mounted.current) setLiveJobId(current => current === job.id ? null : current);
+      });
     } catch (error) {
       if (!mounted.current) return;
       if (error instanceof ExecutionApiError && error.jobId) {

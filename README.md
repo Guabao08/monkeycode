@@ -1,6 +1,6 @@
 # monkeycode
 
-A desktop-first code-practice app built with React, TypeScript and Vite. Python/Java typing works entirely in the browser. The **solve** workspace adds a method editor for the first original exercise, with an optional invite-protected Node API executing explicit Run/Submit requests through OnlineCompiler.
+A desktop-first code-practice app built with React, TypeScript and Vite. Python/Java typing works entirely in the browser. The **solve** workspace uses an optional invite-protected Supabase Edge Function and Postgres database, with explicit Run/Submit requests executed by OnlineCompiler.
 
 ## Run locally
 
@@ -14,7 +14,7 @@ npm run dev
 Open the local URL printed by Vite. Other commands:
 
 ```sh
-npm test          # typing, content, HTTP/SQLite and provider-contract tests
+npm test          # typing, content, provider contracts and Deno Edge tests; Deno 2 required
 npm run build    # TypeScript checks and production bundle in dist/
 npm run preview  # serve the production bundle locally after building
 ```
@@ -23,7 +23,7 @@ Python 3 and a JDK are used only for maintainer-side sample validation and the e
 
 ## Solving workspace
 
-Select **solve** in the header or open `http://127.0.0.1:5173/#solve`. Start the optional API below on port 3001; Vite proxies relative `/api` requests to it. The browser receives an **execution invite**, never the provider API key. Without an invite, the prompt and editor remain available locally.
+Select **solve** in the header or open `http://127.0.0.1:5173/#solve`. Vite proxies `/api` to the local Supabase gateway on port 54321. The browser receives an **execution invite**, never a provider or service-role key. Without an invite, the prompt and editor remain available locally.
 
 - Write a Python function or Java instance method, with helpers if needed. Language drafts stay separate in memory. Reloading discards drafts and the invite; switching between typing and solving preserves them while the page stays open.
 - **Run examples** checks public cases, showing expected/actual values. **Submit** checks public cases first, then private categories. Private inputs and diagnostics stay withheld. A passing Submit establishes functional results only, not the stated time/space bounds.
@@ -33,7 +33,7 @@ Select **solve** in the header or open `http://127.0.0.1:5173/#solve`. Start the
 - Optional **Practice / Independent check** records the intended activity, not proof of an unseen problem or unaided work. Prior visits are tracked across languages. No lessons, notes or waiting period block an attempt.
 - Local history keeps at most 100 source-free attempt records plus one pending job in `monkeycode.solve-progress.v1`: action, language, timestamps, outcome and attempt conditions. Drafts, invites, notes and diagnostics are not stored. Storage failure is reported; the session can continue in memory.
 
-Production `npm start` serves the built `dist/` frontend and `/api` from one Node process on one port; run `npm run build` first. `npm run start:api` remains API-only. The Vite development and preview servers use a localhost API proxy; configure the API's allowed origin to match the frontend URL when using preview.
+Production uses Cloudflare Pages for the frontend and same-origin `/api` proxy, with Supabase for execution orchestration and durable storage. No Node application server or persistent SQLite volume is required.
 
 ## Practice exercise contracts
 
@@ -56,96 +56,100 @@ This command compiles/runs both reference implementations and correct linear alt
 
 The local checkers execute **only repository-authored code**, use temporary files removed on exit, and have process/output bounds. They are **not sandboxes**: never expose them as endpoints or use them to execute untrusted submissions. They do not upload code. `npm run check:execution` additionally exercises the exact production wrappers with the public bundle and all eight private categories, including reconstruction of the full 100,000-element input.
 
-## Optional hosted execution API
+## Supabase execution and Cloudflare Pages
 
-`server/main.ts` runs the API; learner code executes only on [OnlineCompiler's native test service](https://onlinecompiler.io/docs/run-tests), never in a local child process. Deployment requires a provider account/key and explicit acceptance of its [privacy policy](https://onlinecompiler.io/privacy). The provider retains submitted source, input and output in account execution history while the account is active: **this is not zero-retention execution**. Do not submit secrets. Protect provider-account access as well as the API key.
+Learner code executes only on [OnlineCompiler's native test service](https://onlinecompiler.io/docs/run-tests), never in the Edge Function or a local child process. The provider [retains source, inputs and outputs](https://onlinecompiler.io/privacy) in account execution history: **this is not zero-retention execution**. Do not submit secrets.
 
-1. Copy `.env.example` to the ignored `.env` file and configure the server-only key. Never put credentials in `VITE_` variables.
-2. Review provider retention, then set `ONLINECOMPILER_RETENTION_ACCEPTED=true`.
-3. Run `npm run invite:create -- seat-1`. Securely share its raw token with that invitee; configure only the printed SHA-256 digest in `MONKEYCODE_INVITES_JSON`, for example `{"seat-1":"<64-hex digest>"}`. Configure 1–10 unique invites. The generator deliberately prints the secret once; do not paste it into logs or commit it.
-4. Set `MONKEYCODE_ALLOWED_ORIGIN` to the exact frontend origin. Default: `http://127.0.0.1:5173` (not `http://localhost:5173`). Set `MONKEYCODE_EXECUTION_ENABLED=true` only when ready to accept submissions.
-5. Run `npm run start:api` (or `npm run dev:api` for restart-on-change development). Missing key, retention acceptance or valid invites prevents startup. Execution defaults to disabled; changing this switch requires restarting the process.
+### Local execution development
 
-Default API-only listener: `127.0.0.1:3001`. Production requires **one API process on one host with a persistent writable SQLite volume** at `MONKEYCODE_DB_PATH` (default `.data/execution.sqlite`). Do not horizontally scale this store or place it on a shared network filesystem. The native Render deployment below supplies TLS and serves frontend and API together; a static-only deployment cannot execute code.
+Install Deno 2 and start Docker. The Supabase and Wrangler CLIs are development dependencies.
 
-### HTTP contract
+1. Copy `.env.example` to ignored `.env`. Generate an invite with `npm run invite:create -- seat-1`; privately retain the raw token and configure only its SHA-256 digest in `MONKEYCODE_INVITES_JSON`. Configure 1–10 unique invites.
+2. Keep `MONKEYCODE_EXECUTION_ENABLED=false` initially. Set the exact frontend origin, normally `http://127.0.0.1:5173`.
+3. Start the local stack:
 
-All `/api/` requests require `Authorization: Bearer <invite token>`. Browser requests require the exact allowed origin; there are no authentication cookies or wildcard CORS. CLI clients may omit `Origin`. API responses are non-cacheable.
+   ```sh
+   npx supabase start --exclude gotrue,realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+   npm run dev:execution
+   ```
 
-- `GET /healthz`: minimal liveness response, not a provider-readiness check.
-- `GET /api/exercises/first-at-least`: public statement, signatures and examples only.
-- `POST /api/jobs`: JSON with exactly `exerciseId`, `exerciseVersion`, `language`, `action`, `code`; returns HTTP 202 with a job ID. Only exercise `first-at-least`, version `1`, Python/Java and `run`/`submit` are accepted.
-- `GET /api/jobs/:id`: owner-only queued/running/completed state and result; another invite sees 404. Poll this ID rather than resubmitting.
+4. In another terminal, run `npm run dev`. Verify invite access and disabled admission first. To execute real submissions, configure the provider key, explicitly accept retention and enable execution, then restart the function listener.
 
-Example body (Python method, not a full console program):
+Supabase injects its URL and service-role key into the function. Never place these credentials in browser code, `VITE_` variables or Cloudflare Pages. Local Supabase data is separate from a hosted project. Do not run a database reset against a project containing real usage.
 
-```json
-{
-  "exerciseId": "first-at-least",
-  "exerciseVersion": 1,
-  "language": "python",
-  "action": "run",
-  "code": "def first_at_least(values, target):\n    for index, value in enumerate(values):\n        if value >= target:\n            return index\n    return len(values)"
-}
-```
+For a local Pages production preview, use `CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false npx wrangler pages dev dist`. Wrangler otherwise automatically loads the backend `.env` into local Worker bindings. Keep Pages routing configuration in a separate ignored `.dev.vars` file containing only `EXECUTION_API_URL`; never copy backend secrets there.
 
-Java submissions are members of the supplied `Solution` class, including any helpers; do not supply a `Main` class or console parser. Bodies are capped at 40 KiB and submitted source at 32 KiB UTF-8, with NUL rejected. Public feedback can include bounded compiler/runtime messages. Private feedback contains categories only, including for private runtime/resource failures; no private diagnostics are returned. Results distinguish passed, wrong-answer, compile-error, runtime-error, resource-limit and service-error, and always report `implementationComplexityVerified: false`. These categories preserve native provider verdicts: Java compiles inside its source-launcher run, so a compilation failure can return `runtime-error` with compiler diagnostics. Python syntax errors also return `runtime-error`. Do not infer a different category by parsing learner-controlled stderr; see the provider's [startup and verdict contract](https://onlinecompiler.io/docs/run-tests).
+### HTTP and streaming contract
 
-### Budgets, recovery and local retention
+The public Edge endpoint is `https://<project-ref>.supabase.co/functions/v1/execution`. Cloudflare's `functions/api/[[path]].ts` forwards only the supported `/api` routes to this fixed endpoint, preserving the response stream. Browser calls remain same-origin.
 
-Run bundles the three visible examples into **one provider run**. Submit reserves **nine provider runs**: that public bundle plus eight private category bundles covering all thirteen private cases. It stops before private execution if public examples fail. This differs from one provider execution per button click.
+All `/api` requests require `Authorization: Bearer <invite token>`. Supabase gateway JWT verification is deliberately disabled: the function validates custom invite hashes itself. Browser origins must match exactly; no authentication cookies are used. Responses are non-cacheable.
 
-Default limits are 30 admitted jobs/invite/day, 300 jobs/day globally, 30 reserved provider runs per rolling minute, 90,000 per UTC calendar month, and one active job globally. Day limits reset at UTC midnight. Limits are atomically persisted before execution. Failed admission spends nothing; admitted reservations are conservative and are **not refunded**, even after an early failure. Use a dedicated provider account/key or account for other consumers separately; this database cannot observe their usage.
+- `GET /healthz` on the Edge endpoint: liveness only, not provider readiness.
+- `GET /api/exercises/first-at-least`: public exercise only.
+- `POST /api/jobs`: JSON containing exactly `exerciseId`, `exerciseVersion`, `language`, `action`, `code`. Exercise `first-at-least`, version 1, Python/Java and Run/Submit only.
+- Successful POST returns HTTP 202, `application/x-ndjson`: an `admitted` event containing the durable job ID immediately, followed by a `completed` event after the result commits. The browser saves the ID before awaiting completion.
+- `GET /api/jobs/:id`: authenticated owner-only recovery. Another invite receives 404. A broken stream or reload recovers this ID, **never automatically repeats POST**.
 
-There are no automatic retries, fallback runners, restart replays or remote cancellation guarantees. Ambiguous service failures and unfinished jobs on recovery impose a 120-second capacity quarantine; recovery marks unfinished jobs unavailable rather than running them again. Do not delete/reset the database to clear limits or deploy multiple copies against one provider account without a separate shared limiter.
+Python submissions are module-level functions; Java submissions are members of the supplied `Solution` class, not console programs. Request bodies are capped at 40 KiB and source at 32 KiB UTF-8; NUL is rejected. Public diagnostics are bounded to 8 KiB and credential-redacted. Java source-launcher compilation failures and Python syntax failures may be provider `runtime-error` verdicts; do not reclassify learner-controlled stderr.
 
-Submitted source is held only for the active in-process execution and is not written to application logs or SQLite. Public diagnostic messages can quote submitted source; they are owner-only, key-redacted, held only in RAM (at most 8 KiB/job, up to 24 hours), and disappear after restart. Durable job results contain only sanitized status, public numeric/boolean feedback or private categories; completed records expire after 24 hours. Current aggregate budget counters survive result expiry and restart. Proxy/hosting logging must also avoid request bodies and authorization headers.
+### Transactional budgets, recovery and privacy
 
-### Verification and deployment gate
+Run reserves one provider run for the public bundle. Submit reserves nine: the public bundle plus eight private-category bundles covering thirteen cases. Reservations are conservative and never refunded, including early public failure.
+
+Defaults: 30 jobs/invite/UTC day, 300 jobs/UTC day globally, 30 reserved runs/rolling minute, 90,000 reserved runs/UTC month, and one active job globally. Postgres locks a singleton capacity row and commits quota reservation with admission. Multiple workers cannot independently admit overlapping jobs or reset budgets.
+
+Workers have a 100-second execution deadline; provider HTTP calls each have a 45-second timeout. A job has a 150-second lease followed by a 120-second uncertainty quarantine. Expired work becomes a source-free service error, with no replay or refund. Duplicate or late completion cannot replace the first durable result. Disconnecting does not cancel admitted work.
+
+Source and public diagnostics remain in worker/browser RAM only. Diagnostics travel on the live stream and are unavailable from later GET recovery. Postgres stores sanitized status, public numeric/boolean results or known private failure categories—never source, raw invites, arbitrary output or compiler diagnostics. Results expire 24 hours after job creation; current aggregate quota counters survive result expiry. Private inputs and diagnostics are withheld. Functional passes never verify implementation complexity.
+
+Tables are in a private RLS-enabled schema. Only the service role can invoke the narrowly scoped public RPCs; anonymous/authenticated roles cannot access execution data. Disable request-body and Authorization logging in hosting/proxy configuration.
+
+### Existing SQLite cutover
+
+Do not silently start fresh counters against an already-used provider account.
+
+1. Disable admissions and stop **every** old API process. Preserve the old database, WAL sidecars and any ownership file; do not delete or replace an existing ownership file. For older installations without a sidecar, the importer creates one without replacing an existing lock inode.
+2. Apply the Supabase migration to an unused destination. Keep execution disabled.
+3. In a private operator shell, configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `MONKEYCODE_LEGACY_STOPPED=true`, then run:
+
+   ```sh
+   npm run migrate:legacy -- /absolute/path/to/execution.sqlite
+   ```
+
+The command obtains the legacy ownership lock, reads a consistent source-free snapshot and sends it directly to the administrative import RPC without writing a snapshot file. The import preserves current daily/monthly/minute reservations and retained job IDs, sanitizes results and quarantines unfinished work. Nonempty destinations and repeated imports are rejected. If the HTTP outcome is uncertain, inspect destination state before retrying; **never reset counters to make an import succeed**. Keep the old API stopped after cutover.
+
+### Free-tier deployment
+
+Cloudflare Pages plus Supabase Free avoids the paid Render service. Free tiers have limits and availability restrictions; this is not an unlimited or production-SLA promise. Supabase projects can pause for inactivity. OnlineCompiler usage and optional domains remain separate. Review [Supabase pricing](https://supabase.com/pricing), [Edge limits](https://supabase.com/docs/guides/functions/limits) and [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/) before enabling public traffic; do not upgrade paid plans automatically.
+
+1. Create a **Free** Supabase project and link it with `npx supabase link --project-ref <project-ref>`. With Supabase CLI 3, review and apply `npx supabase db push --remote` (without `--remote`, this command targets the local database). For an existing SQLite account, perform the cutover above before admitting any new job.
+2. Set server-only function secrets using Supabase's secure dashboard or an ignored, dedicated secrets file: invite digest JSON, exact frontend origin, provider key, retention acknowledgement, quota caps and `MONKEYCODE_EXECUTION_ENABLED=false`. Supabase supplies its own URL/service-role key; do not overwrite them.
+3. Deploy with `npx supabase functions deploy execution --no-verify-jwt`. This deploys the real execution entrypoint; no QA endpoint belongs in a release.
+4. Build with `npm ci && npm run build`. Create a Cloudflare Pages project with `dist` as output and this repository's root `functions/` and `wrangler.toml`. Deploy with `npx wrangler pages deploy dist --project-name monkeycode`, or configure the corresponding Git deployment. Preserve `public/_headers` in the build.
+5. In Pages project settings, configure **only** the server-side routing variable `EXECUTION_API_URL=https://<project-ref>.supabase.co/functions/v1/execution`. Set Supabase's allowed origin to the exact canonical Pages/custom-domain origin. Redeploy Pages after changing its environment. Preview origins are not automatically authorized.
+6. Before enabling execution, verify HTTPS, fonts/static assets, `/#solve`, unauthenticated/invalid-invite rejection, authenticated public exercise access, wrong-origin rejection, disabled POST rejection and owner-only job recovery. Health alone does not establish readiness.
+7. Review logging, retention and provider-account usage. Explicitly enable execution only after these checks. Make one deliberate authored submission and recover its same ID after reload/redeploy; do not POST again to test persistence.
+
+Live invite-only deployment: [monkeycode.pages.dev](https://monkeycode.pages.dev), verified November 4, 2026. Cloudflare Pages and Supabase are on their free tiers; execution is enabled for the existing invites. No paid Render resource was created.
+
+For rollback, disable admissions and drain work first. Preserve Postgres data and budget counters; code rollback is not data rollback. Never restore an older snapshot or switch back to stale SQLite counters without reconciling provider usage. Free-tier backup/recovery guarantees must be reviewed separately.
+
+### Verification
 
 ```sh
 npm test
 npm run build
-npm run check:exercise    # local authored code; Python/JDK required
-npm run check:execution   # local production harness smoke; Python/JDK required
+npm run check:execution   # repository-authored Python/Java only; not a sandbox
 ```
 
-Local checks passed, including actual Python/Java execution. HTTP tests use a controlled executor and temporary SQLite; provider-contract tests use controlled transport. Separately, live acceptance verified Python and Java reference submissions, a functionally correct Python linear submission, rejection of the Python boundary mistake, and an invalid Java method reported as `runtime-error` with compiler diagnostics. The initial smoke command expected `compile-error` for that final case and failed; its expectation was corrected to match Java's source-launcher behavior. All five completed jobs were then verified through authenticated HTTP without resubmitting them. This proves those hosted paths, not every provider failure or production deployment.
+Migration verification passed 72 Node tests, 18 Deno tests, the TypeScript/Vite build, real PostgreSQL SQL invariants and authored Python/Java wrapper execution. A real local Supabase gateway/Edge runtime verified authentication, origins, disabled execution and service-role database lookup. Browser checks against the real local Edge/Postgres stack with a **controlled executor** verified early admission, public feedback, private-category feedback, diagnostic redaction, draft snapshot isolation and reload recovery: five explicit POSTs total, zero replacement POSTs after reload. These checks made no real provider requests and do not establish hosted production acceptance.
 
-After configuring a real account, retention acceptance, enabled API and invite, set `MONKEYCODE_SMOKE_TOKEN` securely in the shell and run `npm run check:hosted` against that running API (`MONKEYCODE_SMOKE_URL` optionally selects another HTTPS API origin). This opt-in command submits only repository-authored programs, runs five sequential jobs and reserves up to **29 provider runs**. Leave minute-budget headroom and inspect any ambiguous job before trying again; the script never automatically resubmits.
+The actual local Cloudflare Pages worker also compiled and rendered the production workspace with its security headers, rejected unknown API routes and failed closed when upstream configuration was absent. The offline import command was exercised with temporary SQLite fixtures and real Postgres: current quota survived, unfinished IDs became unavailable, diagnostics were stripped and duplicate import was rejected.
 
-The integrated workspace was exercised in a real browser against the configured provider: Python public pass, private boundary failure, corrected private pass, Java public pass and invalid-Java diagnostics. Interrupted GET polling and reload recovered the original job with no replacement POST; newer drafts were preserved and local records excluded source, invite and diagnostics. Before production: deploy the single-process persistent API behind TLS, route `/api`, and verify deployment secrets, logging, retention, quotas and origin handling in that environment. Local acceptance is not a production deployment. Remove `MONKEYCODE_SMOKE_TOKEN` from `.env` after verification if it was added there; retain the invite token securely for later authenticated access.
+Hosted acceptance verified the actual Pages-to-Supabase proxy, authenticated public exercise access, unauthenticated and wrong-origin rejection, disabled admission before enablement, bundled fonts, desktop workspace and the typing final-character correction rule. One real authored Python Run passed all three public examples. Its completed ID recovered by GET after reload with zero replacement POSTs, and browser storage contained neither its draft nor invite. The offline import retained 50 November provider reservations; the accepted Run raised that total to 51. An earlier browser request failed before admission: database inspection confirmed unchanged counters and no new job before a separate explicit request. The app did not automatically replay it. Hosted Java/private Submit acceptance has not been exercised by this deployment check.
 
-### Render production deployment (operator-run, not deployed)
-
-`render.yaml` defines one native Node 24 **paid Starter web service**, one instance, and a **1 GB persistent disk** mounted at `/var/data`. It builds with `npm ci --include=dev && npm run build`, starts with `npm start`, and checks `/healthz`. This is not a free/ephemeral, serverless, multi-process or autoscaling deployment. The disk-owning process serves `dist/` and the API on the same origin and port. Render stops the old disk-backed instance before starting its replacement: expect short downtime on deploys/restarts, not zero downtime.
-
-Local release verification passed: 101 tests, TypeScript/Vite build, and normalized Blueprint validation against Render's published Draft 2020-12 JSON Schema. The actual `npm start` process served the built app and locally bundled fonts in a browser, authenticated the same-origin exercise request, rejected execution while disabled, and returned correct static MIME/cache/HEAD and API authorization/origin responses. A separate real cross-process smoke rejected a concurrent owner; after SIGKILL, recovery retained all nine reserved units, marked the unfinished job unavailable, and quarantined new admission without contacting the provider. These are local checks, not Render HTTPS, disk or account acceptance.
-
-Treat `dist/` as immutable while the process is running; restart after replacing the build. Static serving is limited to its startup manifest, without a catch-all HTML fallback for missing assets.
-
-**Outstanding prerequisites:** an operator must create/access a Render account/workspace with billing permission, authorize Render's GitHub integration with access to this repository, and have permission to publish/select the deployment branch. No Render account or service has been provisioned here; production deployment and its checks remain unverified. Paid hosting has been chosen, but review the current [service and disk charges](https://render.com/pricing) and approve the Dashboard's billing summary before creating resources. Provider execution charges/quotas are separate; disabling execution does not stop Render billing.
-
-1. Publish the complete changes to a branch containing **both the React UI and `render.yaml` plus the server changes**. In the [Render Dashboard](https://dashboard.render.com), choose **New → Blueprint**, connect this repository, select that branch, and use the root `render.yaml`. The Blueprint deliberately pins neither `repo` nor `branch`; confirm the created service's source branch before deploying. Do not select a backend-only branch.
-2. Review the proposed single paid Starter service and 1 GB disk. Supply the three `sync: false` values in Render's secure environment-variable prompts/settings, **not chat, committed files, browser `VITE_` variables, screenshots or logs**:
-   - `ONLINECOMPILER_API_KEY`: the server-only provider key.
-   - `ONLINECOMPILER_RETENTION_ACCEPTED`: `true` only after reviewing and accepting the provider retention policy above.
-   - `MONKEYCODE_INVITES_JSON`: generate invites with `npm run invite:create -- seat-1`, securely deliver each **raw token** to its invitee, and enter only the ID-to-**SHA-256 digest** JSON mapping in Render. Never configure raw invite tokens in this mapping; keep raw tokens in a private password manager for authenticated checks.
-3. Keep `MONKEYCODE_EXECUTION_ENABLED=false` for first boot. Required provider/invite configuration is still needed for startup. The Blueprint binds `0.0.0.0`; the application uses Render's `PORT` unless `MONKEYCODE_PORT` is explicitly set. Leave that override unset. The allowed browser origin defaults to `RENDER_EXTERNAL_URL` (the service's HTTPS `onrender.com` URL) unless `MONKEYCODE_ALLOWED_ORIGIN` is explicit. No proxy configuration or wildcard CORS is needed.
-4. Create the Blueprint and inspect the deploy logs without exposing secrets or logging request bodies/Authorization headers. Confirm the service has exactly one instance/process, the disk is mounted, and `MONKEYCODE_DB_PATH=/var/data/execution.sqlite`. The database and its SQLite `-wal`/`-shm` sidecars must remain under this persistent directory, never in the ephemeral source tree. The disk is available at runtime only, not during builds/pre-deploy commands.
-5. Before enabling execution, check HTTPS `/healthz`, the root page and its assets, and `/#solve`. Liveness alone does **not** prove provider readiness. Check that unauthenticated `/api/exercises/first-at-least` is rejected, an authenticated request with the private raw invite succeeds, an invalid invite is rejected, and the exact configured browser origin is enforced. Keep raw tokens out of shell history/output. Confirm the execution-disabled UI/API behavior without creating a provider job. Restart the service and repeat health/static/auth checks; inspect that the same SQLite database remains, rather than a new ephemeral database.
-6. For a custom domain, configure DNS/TLS in Render, then set **`MONKEYCODE_ALLOWED_ORIGIN=https://practice.example.com`** to the exact chosen frontend origin (scheme + host and nondefault port if any; no path or trailing slash). Redeploy/restart and use that canonical URL; the old `onrender.com` browser origin will no longer be authorized. Do not set `*` or a comma-separated origin list.
-7. Only after these checks and budget/retention/logging review, explicitly enable execution and redeploy. For a lasting release, change the Blueprint's `MONKEYCODE_EXECUTION_ENABLED` value to `'true'` in the reviewed release branch and sync it. A Dashboard-only override can be reset to `'false'` by a later Blueprint sync; deliberately reconcile both sources. `sync: false` secrets are entered at creation and subsequently managed in the Dashboard, not supplied anew by YAML sync. Start with one explicit authored example and poll its returned ID. The optional hosted smoke above costs up to 29 reserved provider runs; it is not a boot/readiness probe. Never automatically retry a submission POST after an ambiguous result.
-8. Record the accepted commit and configuration. `autoDeployTrigger: 'off'` disables commit-triggered service deploys, not the initial creation or intentional Blueprint/configuration updates. Review Blueprint syncs and manually deploy the selected release commit from the Dashboard. For staging, create a **separate service/disk/database and separate invites**, keep execution disabled initially, and isolate provider credentials/budgets; never mount or copy production's live database into staging.
-
-**Ownership cutover:** stop every prior-version API process before first starting this release against an existing database. The new owner holds an OS-backed exclusive SQLite lock in `execution.sqlite.ownership`; do not unlink or replace that file while any process is running. The old PID/token ownership schema migrates transactionally to a crash marker, avoiding false ownership after container PID reuse. Old and new ownership implementations must never overlap. PID-based releases cannot use the upgraded schema unchanged; rolling back across this migration requires a reviewed offline compatibility migration that preserves jobs and quota counters, not a database reset.
-
-**Persistence, backups and rollback:** after an explicitly approved execution, record its job ID and quota state, restart/redeploy, and confirm authenticated GET can recover the same durable result and quotas remain consumed (RAM-only diagnostics are expected to disappear). Never reset SQLite to regain budget, and never replay POST to verify persistence. An unfinished job can become unavailable on restart and impose the documented quarantine. For backups, first disable admissions, let active work finish, and stop the owning application/service before taking an offline consistent copy of the database and any remaining WAL sidecars; arrange supported maintenance access before stopping, and store backups securely outside the service disk. Never copy only a live `execution.sqlite` file while WAL writes are possible. A SQLite-aware online backup requires an appropriate backup tool/maintenance procedure; none is provided by this app. Render's daily disk snapshots (seven-day retention) are not a substitute for a database-consistent backup: Render warns against custom-database snapshot recovery, and restoration discards newer writes.
-
-For a controlled rollback, disable execution, drain work, preserve a consistent backup, review the old code's compatibility with the current database and environment, and manually deploy the known-good commit with the **same disk**. Code rollback does not roll back data, quotas, provider runs or environment values. Do not blindly restore an older database/snapshot: losing budget counters can authorize already-spent usage again. Expect downtime, repeat health/static/auth and persistence checks, then explicitly re-enable only after review. Deleting or suspending resources has billing/data consequences; consult Render before cleanup rather than assuming disabled execution means free hosting.
-
-Official references: [Blueprint fields and schema validation](https://render.com/docs/blueprint-spec), [persistent disk lifecycle, limitations and snapshots](https://render.com/docs/disks), [default `PORT`/external URL environment variables](https://render.com/docs/environment-variables), [secret/environment configuration](https://render.com/docs/configure-environment-variables), and [Node version precedence](https://render.com/docs/node-version). The public [JSON Schema](https://render.com/schema/render.yaml.json) supports local IDE validation without a Render token; schema validation does not establish account permissions, runtime behavior or successful deployment.
-
+For an explicitly authorized real-provider smoke, set `MONKEYCODE_SMOKE_TOKEN`, `ONLINECOMPILER_RETENTION_ACCEPTED=true` and optionally `MONKEYCODE_SMOKE_URL` to the HTTPS frontend origin, then run `npm run check:hosted`. It makes five sequential authored submissions, reserves up to 29 provider runs, prints admitted IDs for recovery and never automatically retries a failed/ambiguous POST. It is not a readiness probe.
 
 ## Practice modes
 

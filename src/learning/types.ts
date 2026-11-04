@@ -1,4 +1,4 @@
-import type { Language } from "../types";
+import type { Language } from "../types.ts";
 
 export type Concept = "hash-maps" | "two-pointers" | "sliding-window" | "binary-search";
 export type Activity = "practice" | "independent-check";

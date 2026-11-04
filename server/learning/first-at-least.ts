@@ -1,5 +1,5 @@
-import { firstAtLeast, type FirstAtLeastInput } from "../../src/learning/first-at-least";
-import type { ApproachEvidence, ExampleFeedback, ReasoningQuestion, SubmissionFeedback } from "../../src/learning/types";
+import { firstAtLeast, type FirstAtLeastInput } from "../../src/learning/first-at-least.ts";
+import type { ApproachEvidence, ExampleFeedback, ReasoningQuestion, SubmissionFeedback } from "../../src/learning/types.ts";
 
 /** Maintainer/server material. Never import this module into the browser entry. */
 export const teaching = {

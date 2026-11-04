@@ -1,0 +1,7 @@
+name = "monkeycode"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-07-17"
+
+# Public endpoint routing only. Provider/service-role credentials belong in Supabase.
+[vars]
+EXECUTION_API_URL = "https://ddchelpnttfspmqetlzy.supabase.co/functions/v1/execution"

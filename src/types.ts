@@ -1,4 +1,4 @@
-import { prepare } from "./engine";
+import { prepare } from "./engine.ts";
 
 export type Language = "python" | "java";
 export type Scope = "method" | "full";

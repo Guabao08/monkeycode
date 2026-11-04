@@ -1,7 +1,7 @@
-import type { Submission, ExecutionResult } from "../../src/learning/execution";
+import type { Submission, ExecutionResult } from "../../src/learning/execution.ts";
 
 export interface Executor {
-  execute(submission: Submission): Promise<ExecutionResult>;
+  execute(submission: Submission, signal?: AbortSignal): Promise<ExecutionResult>;
 }
 
 /** Reserve pessimistically: one public bundle plus eight private category runs. */

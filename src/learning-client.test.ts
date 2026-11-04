@@ -10,6 +10,12 @@ const createdAt = "2026-11-03T10:00:00.000Z";
 const submission: Submission = { exerciseId: "first-at-least", exerciseVersion: 1, language: "python", action: "submit", code: "private learner source" };
 const reply = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 const passed = { status: "passed", feedback: { status: "passed", failureCategories: [] }, implementationComplexityVerified: false };
+const running = { id, createdAt, status: "running" };
+const frame = (type: string, job: unknown) => `${JSON.stringify({ type, job })}\n`;
+const streamReply = (job: unknown, result: unknown = passed) => new Response(
+  frame("admitted", job) + frame("completed", { id, createdAt, status: "completed", result }),
+  { headers: { "Content-Type": "application/x-ndjson" } },
+);
 
 function apiError(error: unknown): error is ExecutionApiError {
   assert.ok(error instanceof ExecutionApiError);
@@ -59,18 +65,23 @@ test("ambiguous POST failures never retry and tell the caller not to assume reje
   assert.equal(fetch.mock.callCount(), 4);
 });
 
-test("POST responses already running or completed are known jobs, not reasons to resubmit", async t => {
+test("admission returns a recoverable ID before live completion without another POST", async t => {
+  let writer!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({ start(controller) { writer = controller; } });
+  const fetch = t.mock.method(globalThis, "fetch", async () => new Response(body, { headers: { "Content-Type": "application/x-ndjson" } }));
+  const pending = createJob("invite-secret", submission);
+  writer.enqueue(new TextEncoder().encode(frame("admitted", running)));
+  const admission = await pending;
+  assert.equal(admission.job.id, id);
+  assert.equal(admission.job.status, "running");
   let completed = false;
-  const fetch = t.mock.method(globalThis, "fetch", async () => {
-    const result = completed ? { id, createdAt, status: "completed", result: passed } : { id, createdAt, status: "running" };
-    completed = true;
-    return reply(result, 202);
-  });
-  assert.equal((await createJob("invite-secret", submission)).status, "running");
-  const job = await createJob("invite-secret", submission);
-  assert.equal(job.status, "completed");
-  assert.equal(job.result?.implementationComplexityVerified, false);
-  assert.equal(fetch.mock.callCount(), 2);
+  void admission.completion.then(() => { completed = true; });
+  await Promise.resolve();
+  assert.equal(completed, false);
+  writer.enqueue(new TextEncoder().encode(frame("completed", { id, createdAt, status: "completed", result: passed })));
+  writer.close();
+  assert.equal((await admission.completion).result?.status, "passed");
+  assert.equal(fetch.mock.callCount(), 1);
 });
 
 test("a known UUID survives invalid POST result or missing timestamps for GET recovery", async t => {
@@ -78,7 +89,7 @@ test("a known UUID survives invalid POST result or missing timestamps for GET re
     { id, createdAt, status: "completed", result: { ...passed, implementationComplexityVerified: true } },
     { id, status: "running" },
   ];
-  const fetch = t.mock.method(globalThis, "fetch", async () => reply(values.shift(), 202));
+  const fetch = t.mock.method(globalThis, "fetch", async () => streamReply(values.shift()));
   for (let index = 0; index < 2; index++) {
     await assert.rejects(createJob("invite-secret", submission), error => apiError(error) && !error.uncertain && error.jobId === id);
   }
@@ -121,13 +132,13 @@ test("public cases allow numeric and boolean wrong outputs but reject inconsiste
 
 test("Submit rejects a public-only pass while Run rejects private category feedback", async t => {
   let action: "run" | "submit" = "submit";
-  t.mock.method(globalThis, "fetch", async () => reply({ id, createdAt, status: "completed", result: action === "run" ? passed : {
+  t.mock.method(globalThis, "fetch", async () => streamReply(running, action === "run" ? passed : {
     status: "passed", implementationComplexityVerified: false,
     feedback: { status: "passed", cases: firstAtLeast.examples.map((example, index) => ({ index, expected: example.expected, actual: example.expected, passed: true })) },
-  } }, 202));
-  await assert.rejects(createJob("invite-secret", submission), apiError);
+  }));
+  await assert.rejects((await createJob("invite-secret", submission)).completion, apiError);
   action = "run";
-  await assert.rejects(createJob("invite-secret", { ...submission, action }), apiError);
+  await assert.rejects((await createJob("invite-secret", { ...submission, action })).completion, apiError);
 });
 
 test("caller abort stops a read locally and an in-flight POST remains admission-uncertain", async t => {
@@ -171,19 +182,43 @@ test("private execution failures remain recoverable without exposing diagnostic 
 });
 
 test("Submit can complete with public mismatch feedback before private checks run", async t => {
-  t.mock.method(globalThis, "fetch", async () => reply({
-    id, createdAt, status: "completed", result: {
-      status: "wrong-answer", implementationComplexityVerified: false,
-      feedback: {
-        status: "wrong-answer",
-        cases: firstAtLeast.examples.map((example, index) => ({
-          index, expected: example.expected, actual: index === 0 ? -1 : example.expected, passed: index !== 0,
-        })),
-      },
+  t.mock.method(globalThis, "fetch", async () => streamReply(running, {
+    status: "wrong-answer", implementationComplexityVerified: false,
+    feedback: {
+      status: "wrong-answer",
+      cases: firstAtLeast.examples.map((example, index) => ({
+        index, expected: example.expected, actual: index === 0 ? -1 : example.expected, passed: index !== 0,
+      })),
     },
-  }, 202));
-  const job = await createJob("invite-secret", submission);
+  }));
+  const job = await (await createJob("invite-secret", submission)).completion;
   assert.equal(job.result?.status, "wrong-answer");
   assert(job.result?.feedback && "cases" in job.result.feedback);
   assert.equal(job.result.feedback.cases[0].passed, false);
+});
+
+test("a truncated or mismatched completion preserves the admitted ID and never replays", async t => {
+  const responses = [
+    new Response(frame("admitted", running), { headers: { "Content-Type": "application/x-ndjson" } }),
+    new Response(frame("admitted", running) + frame("completed", { id: otherId, createdAt, status: "completed", result: passed }), { headers: { "Content-Type": "application/x-ndjson" } }),
+  ];
+  const fetch = t.mock.method(globalThis, "fetch", async () => responses.shift()!);
+  for (let index = 0; index < 2; index++) {
+    const admission = await createJob("invite-secret", submission);
+    await assert.rejects(admission.completion, error => apiError(error) && error.jobId === id && !error.uncertain);
+  }
+  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test("caller abort after admission stops only live feedback and preserves recovery identity", async t => {
+  let writer!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({ start(controller) { writer = controller; } });
+  const fetch = t.mock.method(globalThis, "fetch", async () => new Response(body, { headers: { "Content-Type": "application/x-ndjson" } }));
+  const controller = new AbortController();
+  const pending = createJob("invite-secret", submission, controller.signal);
+  writer.enqueue(new TextEncoder().encode(frame("admitted", running)));
+  const admission = await pending;
+  controller.abort();
+  await assert.rejects(admission.completion, error => apiError(error) && error.jobId === id && !error.uncertain);
+  assert.equal(fetch.mock.callCount(), 1);
 });

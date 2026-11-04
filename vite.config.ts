@@ -1,8 +1,12 @@
 import { defineConfig } from "vite";
 
-// Credentials stay in the backend; the browser only calls its own /api origin.
-// Production hosting must route /api to the separately deployed Node server.
-const proxy = { "/api": "http://127.0.0.1:3001" };
+// Browser requests stay same-origin; Supabase holds all execution credentials.
+const proxy = {
+  "/api": {
+    target: "http://127.0.0.1:54321",
+    rewrite: (path: string) => `/functions/v1/execution${path}`,
+  },
+};
 
 export default defineConfig({
   server: { port: 5173, strictPort: true, proxy },

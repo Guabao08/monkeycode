@@ -1,12 +1,12 @@
-import { firstAtLeast } from "../../src/learning/first-at-least";
-import { gradeExamples } from "../learning/first-at-least";
-import { buildProgram, privateBundles, publicBundle, type FixtureBundle } from "./harness";
-import type { Executor } from "./types";
-import type { ExecutionResult, Submission } from "../../src/learning/execution";
+import { firstAtLeast } from "../../src/learning/first-at-least.ts";
+import { gradeExamples } from "../learning/first-at-least.ts";
+import { buildProgram, privateBundles, publicBundle, type FixtureBundle } from "./harness.ts";
+import type { Executor } from "./types.ts";
+import type { ExecutionResult, Submission } from "../../src/learning/execution.ts";
 
 const ENDPOINT = "https://api.onlinecompiler.io/api/run-tests/";
 const RESPONSE_BYTE_LIMIT = 5 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 65_000;
+const REQUEST_TIMEOUT_MS = 45_000;
 const TIME_LIMIT = 2;
 const SERVICE_MESSAGE = "The execution service could not return a complete, valid result. Please try again later.";
 
@@ -114,12 +114,12 @@ export class OnlineCompilerExecutor implements Executor {
   /** Optional transport injection is only a test seam; production origin is fixed. */
   constructor(private readonly apiKey: string, private readonly fetchImpl: typeof fetch = fetch) {}
 
-  private async run(code: string, language: Submission["language"], bundles: readonly FixtureBundle[], hidden: boolean): Promise<NativeResult> {
+  private async run(code: string, language: Submission["language"], bundles: readonly FixtureBundle[], hidden: boolean, signal?: AbortSignal): Promise<NativeResult> {
     if (!this.apiKey.trim()) invalid();
     const response = await this.fetchImpl(ENDPOINT, {
       method: "POST",
       redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]) : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: { Authorization: this.apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({
         compiler: language === "python" ? "python-3.14" : "openjdk-25",
@@ -144,12 +144,13 @@ export class OnlineCompilerExecutor implements Executor {
     return value.split(this.apiKey).join("[redacted]").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").slice(0, 4096);
   }
 
-  async execute(submission: Submission): Promise<ExecutionResult> {
+  async execute(submission: Submission, signal?: AbortSignal): Promise<ExecutionResult> {
     try {
       if (submission.exerciseId !== "first-at-least" || submission.exerciseVersion !== 1
           || (submission.action !== "run" && submission.action !== "submit")) invalid();
       const code = buildProgram(submission.language, submission.code);
-      const visible = await this.run(code, submission.language, [publicBundle], false);
+      signal?.throwIfAborted();
+      const visible = await this.run(code, submission.language, [publicBundle], false, signal);
       const example = visible.tests[0]!;
       const failedStatus = failureStatus(example.verdict);
       if (failedStatus) {
@@ -179,7 +180,8 @@ export class OnlineCompilerExecutor implements Executor {
       if (submission.action === "run") {
         return { ...result("passed"), feedback };
       }
-      const hidden = await this.run(code, submission.language, privateBundles, true);
+      signal?.throwIfAborted();
+      const hidden = await this.run(code, submission.language, privateBundles, true, signal);
       const failureCategories = privateBundles.filter((_, index) => hidden.tests[index]!.verdict !== "accepted").map(bundle => bundle.category);
       const firstNativeFailure = hidden.tests.find(test => test.verdict !== "accepted");
       const status = firstNativeFailure ? failureStatus(firstNativeFailure.verdict) ?? "wrong-answer" : "passed";

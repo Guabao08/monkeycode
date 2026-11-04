@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
-import { firstAtLeast, type FirstAtLeastInput } from "../../src/learning/first-at-least";
-import type { Language } from "../../src/types";
-import { privateCases } from "../learning/first-at-least";
+import { firstAtLeast, type FirstAtLeastInput } from "../../src/learning/first-at-least.ts";
+import type { Language } from "../../src/types.ts";
+import { privateCases } from "../learning/first-at-least.ts";
 
 export interface FixtureBundle {
   input: string;

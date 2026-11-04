@@ -11,5 +11,5 @@
     "allowImportingTsExtensions": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "server", "scripts"]
+  "include": ["src", "server", "scripts", "functions"]
 }

@@ -1,4 +1,4 @@
-import type { Exercise } from "./types";
+import type { Exercise } from "./types.ts";
 
 export interface FirstAtLeastInput {
   values: readonly number[];

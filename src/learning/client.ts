@@ -112,36 +112,30 @@ function validExercise(value: unknown): value is typeof firstAtLeast {
   });
 }
 
-async function request(token: string, path: string, signal?: AbortSignal, submission?: Submission): Promise<{ value: unknown; status: number }> {
-  const post = submission !== undefined;
+async function request(token: string, path: string, signal?: AbortSignal): Promise<{ value: unknown; status: number }> {
   if (signal?.aborted) throw new ExecutionApiError("Request stopped locally. Any already admitted job continues remotely.", null);
   const deadline = AbortSignal.timeout(15_000);
   const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
   let response: Response;
   try {
     response = await fetch(path, {
-      method: post ? "POST" : "GET",
-      headers: { Authorization: `Bearer ${token}`, ...(post ? { "Content-Type": "application/json" } : {}) },
-      ...(post ? { body: JSON.stringify(submission) } : {}),
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
       cache: "no-store", redirect: "error", signal: combined,
     });
   } catch {
     throw new ExecutionApiError(combined.aborted
       ? "Request stopped or timed out locally. Any admitted job continues remotely; do not automatically resubmit."
-      : "Could not reach the execution service. Check an existing job before submitting again.", null, post);
+      : "Could not reach the execution service. Check an existing job before submitting again.", null);
   }
   let value: unknown;
   try { value = await response.json(); }
   catch {
     throw new ExecutionApiError(response.ok
       ? "The execution service returned an unreadable response. Do not automatically resubmit."
-      : httpMessage(response.status), response.status, post && (response.ok || !admissionRejections.has(response.status)));
+      : httpMessage(response.status), response.status);
   }
-  if (!response.ok) {
-    const knownId = post && record(value) && text(value.id) && jobIdPattern.test(value.id) ? value.id : null;
-    throw new ExecutionApiError(httpMessage(response.status), response.status,
-      post && !knownId && !admissionRejections.has(response.status), knownId);
-  }
+  if (!response.ok) throw new ExecutionApiError(httpMessage(response.status), response.status);
   return { value, status: response.status };
 }
 
@@ -152,12 +146,115 @@ export async function loadExercise(token: string, signal?: AbortSignal): Promise
   return firstAtLeast;
 }
 
-export async function createJob(token: string, submission: Submission, signal?: AbortSignal): Promise<JobView> {
-  const { value, status } = await request(token, "/api/jobs", signal, submission);
-  const job = parseJob(value, submission.action);
-  if (job) return job;
-  const knownId = record(value) && text(value.id) && jobIdPattern.test(value.id) ? value.id : null;
-  throw new ExecutionApiError("The execution service returned an invalid job response. Recover the known job before submitting again.", status, !knownId, knownId);
+export interface JobAdmission {
+  job: JobView;
+  /** Live diagnostics remain in memory. A broken stream is recovered by GET, never another POST. */
+  completion: Promise<JobView>;
+}
+
+export async function createJob(token: string, submission: Submission, signal?: AbortSignal): Promise<JobAdmission> {
+  if (signal?.aborted) throw new ExecutionApiError("Request stopped locally. Any already admitted job continues remotely.", null);
+  const controller = new AbortController();
+  const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+  const admissionTimer = setTimeout(() => controller.abort(), 15_000);
+  const lifetimeTimer = setTimeout(() => controller.abort(), 125_000);
+  admissionTimer.unref?.();
+  lifetimeTimer.unref?.();
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let admittedId: string | null = null;
+  let abortRead: (() => void) | undefined;
+  const cleanup = () => {
+    clearTimeout(admissionTimer);
+    clearTimeout(lifetimeTimer);
+  };
+  try {
+    const response = await fetch("/api/jobs", {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(submission), cache: "no-store", redirect: "error", signal: combined,
+    });
+    if (!response.ok) {
+      let value: unknown;
+      try { value = await response.json(); } catch { value = null; }
+      const id = record(value) && text(value.id) && jobIdPattern.test(value.id) ? value.id : null;
+      throw new ExecutionApiError(httpMessage(response.status), response.status, !id && !admissionRejections.has(response.status), id);
+    }
+    if (!response.headers.get("Content-Type")?.startsWith("application/x-ndjson") || !response.body) {
+      throw new ExecutionApiError("The execution service returned an unsupported job stream. Do not automatically resubmit.", response.status, true);
+    }
+    reader = response.body.getReader();
+    const source = reader;
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let buffer = "";
+    let bytes = 0;
+    let ended = false;
+    const stopRead = () => { void source.cancel().catch(() => {}); };
+    abortRead = stopRead;
+    combined.addEventListener("abort", stopRead, { once: true });
+    async function event(): Promise<unknown> {
+      while (!buffer.includes("\n")) {
+        if (ended || combined.aborted) throw new Error("Interrupted execution stream");
+        const chunk = await source.read();
+        if (combined.aborted) throw new Error("Interrupted execution stream");
+        if (chunk.done) {
+          ended = true;
+          buffer += decoder.decode();
+          throw new Error("Incomplete execution stream");
+        }
+        bytes += chunk.value.byteLength;
+        if (bytes > 64 * 1024) throw new Error("Execution stream exceeds its byte limit");
+        buffer += decoder.decode(chunk.value, { stream: true });
+      }
+      const newline = buffer.indexOf("\n");
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      return JSON.parse(line) as unknown;
+    }
+    const first = await event();
+    if (record(first) && record(first.job) && text(first.job.id) && jobIdPattern.test(first.job.id)) admittedId = first.job.id;
+    const job = record(first) && first.type === "admitted" ? parseJob(first.job, submission.action) : null;
+    if (!job) throw new ExecutionApiError("The service returned an invalid admission. Recover a known job before submitting again.", response.status, !admittedId, admittedId);
+    admittedId = job.id;
+    clearTimeout(admissionTimer);
+    const completion = (async (): Promise<JobView> => {
+      try {
+        const last = await event();
+        const completed = record(last) && last.type === "completed" ? parseJob(last.job, submission.action) : null;
+        if (!completed || completed.id !== job.id || completed.status !== "completed" || completed.createdAt !== job.createdAt) {
+          throw new Error("Invalid completion");
+        }
+        // Do not accept an extra event or an unterminated/oversized trailing payload.
+        while (!ended) {
+          const chunk = await source.read();
+          if (combined.aborted) throw new Error("Interrupted execution stream");
+          if (chunk.done) { ended = true; buffer += decoder.decode(); break; }
+          bytes += chunk.value.byteLength;
+          if (bytes > 64 * 1024) throw new Error("Execution stream exceeds its byte limit");
+          buffer += decoder.decode(chunk.value, { stream: true });
+          if (buffer.trim()) throw new Error("Unexpected execution event");
+        }
+        if (buffer.trim()) throw new Error("Unexpected execution event");
+        return completed;
+      } catch {
+        throw new ExecutionApiError("Live feedback was interrupted. Check the saved job; no replacement request was sent.", response.status, false, job.id);
+      } finally {
+        cleanup();
+        combined.removeEventListener("abort", stopRead);
+        await source.cancel().catch(() => {});
+        source.releaseLock();
+      }
+    })();
+    // Callers can persist the admitted ID before subscribing without an unhandled rejection.
+    void completion.catch(() => {});
+    return { job, completion };
+  } catch (error) {
+    cleanup();
+    if (abortRead) combined.removeEventListener("abort", abortRead);
+    await reader?.cancel().catch(() => {});
+    if (error instanceof ExecutionApiError) throw error;
+    throw new ExecutionApiError(combined.aborted
+      ? "Request stopped or timed out locally. Recover a known job before submitting again; do not automatically resubmit."
+      : "The submission response was interrupted. Recover a known job before submitting again; do not automatically resubmit.", null, !admittedId, admittedId);
+  }
 }
 
 export async function getJob(token: string, id: string, signal?: AbortSignal): Promise<JobView> {

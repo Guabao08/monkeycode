@@ -1,5 +1,5 @@
-import type { Language } from "../types";
-import type { ExampleFeedback, SubmissionFeedback } from "./types";
+import type { Language } from "../types.ts";
+import type { ExampleFeedback, SubmissionFeedback } from "./types.ts";
 
 /** Public wire contracts; no provider credentials, fixtures or server runtime. */
 export interface Submission {

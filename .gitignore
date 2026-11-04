@@ -8,3 +8,7 @@ dist/
 .env.*
 !.env.example
 .data/
+.wrangler/
+.dev.vars*
+supabase/.temp/
+supabase/.branches/

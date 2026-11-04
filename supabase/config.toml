@@ -1,0 +1,5 @@
+project_id = "monkeycode"
+
+[functions.execution]
+verify_jwt = false
+entrypoint = "./functions/execution/index.ts"
