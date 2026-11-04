@@ -1,0 +1,366 @@
+.solve {
+  width: 100%;
+  min-width: 0;
+  padding-block: 12px 24px;
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.solve-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: clamp(32px, 5vw, 80px);
+  align-items: start;
+}
+.solve-prompt,
+.solve-editor-section {
+  min-width: 0;
+}
+.solve h1,
+.solve h2,
+.solve p {
+  margin: 0;
+}
+.solve h1 {
+  font-size: clamp(24px, 2vw, 28px);
+  font-weight: 400;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.solve h2 {
+  margin-block: 28px 10px;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--main-color);
+}
+.solve .solve-statement {
+  max-width: 65ch;
+  margin-top: 18px;
+}
+.solve-examples {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding-left: 26px;
+}
+.solve-examples li {
+  padding-left: 6px;
+}
+.solve-examples code {
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.solve-examples p {
+  margin-top: 5px;
+  font-size: 12px;
+}
+.solve-constraints {
+  display: grid;
+  gap: 6px;
+  padding-left: 20px;
+  margin: 0 0 14px;
+  overflow-wrap: anywhere;
+}
+.solve-fine {
+  font-size: 12px;
+  line-height: 1.65;
+}
+.solve-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: -8px 0 14px;
+}
+.solve-languages {
+  display: flex;
+  gap: 4px;
+  margin-left: -8px;
+}
+.solve button {
+  min-height: 38px;
+  color: var(--text-color);
+  line-height: 1.4;
+  text-align: left;
+}
+.solve button:hover:not(:disabled) {
+  background: var(--sub-alt-color);
+  color: var(--main-color);
+}
+.solve-languages button[aria-pressed="true"] {
+  color: var(--main-color);
+}
+.solve .solve-method-help {
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+.solve-editor-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.solve-code {
+  display: block;
+  width: 100%;
+  min-height: 260px;
+  height: clamp(260px, 32svh, 380px);
+  padding: 8px 0;
+  resize: vertical;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-color);
+  caret-color: var(--main-color);
+  font-family: inherit;
+  font-size: 16px;
+  font-variant-ligatures: none;
+  line-height: 1.8;
+  tab-size: 4;
+  white-space: pre;
+  overflow: auto;
+}
+.solve .solve-key-help {
+  margin-top: 10px;
+}
+.solve-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+}
+.solve-context-details {
+  margin-top: 18px;
+  font-size: 12px;
+}
+.solve-context-details summary {
+  cursor: pointer;
+}
+.solve-context-details p {
+  max-width: 65ch;
+  margin-top: 8px;
+}
+.solve select,
+.solve input {
+  min-height: 38px;
+  max-width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-color);
+  background: var(--sub-alt-color);
+  caret-color: var(--main-color);
+}
+.solve select:focus-visible {
+  outline: 2px solid var(--main-color);
+  outline-offset: 3px;
+}
+.solve input::placeholder {
+  color: var(--text-color);
+  opacity: 1;
+}
+.solve-connect {
+  margin-top: 24px;
+}
+.solve-connect > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.solve-connect-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.solve-connect-controls input {
+  flex: 1 1 170px;
+  min-width: 0;
+}
+.solve-connect-controls button {
+  flex: 0 0 auto;
+  padding-inline: 14px;
+  background: var(--sub-alt-color);
+}
+.solve-connect .solve-fine {
+  margin-top: 8px;
+}
+.solve .solve-privacy {
+  margin-top: 22px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.solve-privacy strong {
+  font-weight: 400;
+  color: var(--main-color);
+}
+.solve-execution-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block: 14px 8px;
+}
+.solve-execution-controls button {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px 14px;
+  padding: 10px 14px;
+  background: var(--sub-alt-color);
+}
+.solve-execution-controls button span {
+  font-size: 12px;
+}
+.solve-execution-controls .solve-submit {
+  color: var(--main-color);
+}
+.solve .solve-job,
+.solve .solve-notice {
+  margin-top: 18px;
+}
+.solve-job > p + p,
+.solve-job > button {
+  margin-top: 8px;
+}
+.solve-job code {
+  overflow-wrap: anywhere;
+}
+.solve .solve-notice {
+  color: var(--error-color);
+  overflow-wrap: anywhere;
+}
+.solve .solve-risk {
+  margin-block: 8px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.solve-job ~ .solve-fine,
+.solve-notice ~ .solve-fine {
+  margin-top: 12px;
+}
+.solve-result {
+  margin-top: 26px;
+  padding-top: 2px;
+}
+.solve-result > p,
+.solve-result > ul {
+  margin-block: 10px;
+}
+.solve-result h2 {
+  margin-top: 0;
+}
+.solve-diagnostic {
+  max-height: 300px;
+  overflow: auto;
+  padding-block: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.solve-history {
+  margin-top: 44px;
+  padding-top: 12px;
+  border-top: 1px solid var(--sub-color);
+}
+.solve-history h2 {
+  margin-top: 0;
+}
+.solve .solve-history-empty {
+  margin-top: 18px;
+  font-size: 12px;
+}
+.solve-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 16px;
+}
+.solve table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.solve caption {
+  text-align: left;
+  margin-bottom: 10px;
+}
+.solve th {
+  font-weight: 400;
+  white-space: nowrap;
+  color: var(--main-color);
+}
+.solve th,
+.solve td {
+  padding: 10px 18px 10px 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--sub-color);
+}
+.solve td {
+  min-width: 90px;
+  overflow-wrap: anywhere;
+}
+.solve td:last-child,
+.solve th:last-child {
+  padding-right: 0;
+}
+.solve td code {
+  font: inherit;
+}
+.solve-history td:first-child {
+  min-width: 130px;
+}
+.solve-history td:nth-child(3) {
+  min-width: 160px;
+}
+.solve-history td:last-child {
+  min-width: 240px;
+}
+.solve-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .solve-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+  .solve-prompt {
+    max-width: 75ch;
+  }
+  .solve-code {
+    min-height: 290px;
+  }
+}
+@media (max-width: 480px) {
+  .solve {
+    font-size: 14px;
+    padding-top: 0;
+  }
+  .solve-editor-toolbar {
+    align-items: flex-start;
+  }
+  .solve-code {
+    font-size: 14px;
+  }
+  .solve-execution-controls {
+    gap: 8px;
+  }
+  .solve-execution-controls button {
+    flex: 1 1 130px;
+    align-content: center;
+  }
+  .solve-execution-controls button span {
+    flex-basis: 100%;
+  }
+}

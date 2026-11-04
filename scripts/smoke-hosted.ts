@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
 import { references, linearAlternatives, strictGreaterMistakes } from "../server/learning/first-at-least";
-import type { ExecutionResult, Submission } from "../server/execution/types";
+import type { ExecutionResult, Submission } from "../src/learning/execution";
 
 // Explicit operator command: uses the REAL running backend and hosted provider.
 // Up to 29 provider runs, using only the repository-authored programs below.

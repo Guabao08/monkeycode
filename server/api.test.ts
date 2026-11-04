@@ -9,8 +9,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import test, { type TestContext } from "node:test";
 import { createApi, type ApiServer } from "./api";
 import { loadConfig, type ApiConfig } from "./config";
-import type { ExecutionResult, Executor } from "./execution/types";
-import type { JobView } from "./job-store";
+import type { Executor } from "./execution/types";
+import type { ExecutionResult, JobView } from "../src/learning/execution";
 
 const token = "a".repeat(40);
 const otherToken = "b".repeat(40);

@@ -3,7 +3,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { firstAtLeast } from "../src/learning/first-at-least";
 import { privateCases } from "./learning/first-at-least";
 import type { ApiConfig } from "./config";
-import type { ExecutionResult, Executor, Submission } from "./execution/types";
+import type { Executor } from "./execution/types";
+import type { ExecutionResult, Submission } from "../src/learning/execution";
 import { AdmissionError, JobStore, unavailableResult } from "./job-store";
 
 export type ApiServer = Server & { shutdown(): Promise<void> };

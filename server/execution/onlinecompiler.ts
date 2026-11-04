@@ -1,7 +1,8 @@
 import { firstAtLeast } from "../../src/learning/first-at-least";
 import { gradeExamples } from "../learning/first-at-least";
 import { buildProgram, privateBundles, publicBundle, type FixtureBundle } from "./harness";
-import type { ExecutionResult, Executor, Submission } from "./types";
+import type { Executor } from "./types";
+import type { ExecutionResult, Submission } from "../../src/learning/execution";
 
 const ENDPOINT = "https://api.onlinecompiler.io/api/run-tests/";
 const RESPONSE_BYTE_LIMIT = 5 * 1024 * 1024;

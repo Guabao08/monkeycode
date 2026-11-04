@@ -4,7 +4,7 @@ import { firstAtLeast } from "../../src/learning/first-at-least";
 import { privateCases } from "../learning/first-at-least";
 import { buildFixtureBundle, buildProgram, privateBundles, publicBundle } from "./harness";
 import { OnlineCompilerExecutor } from "./onlinecompiler";
-import type { Submission } from "./types";
+import type { Submission } from "../../src/learning/execution";
 
 const submission: Submission = {
   exerciseId: "first-at-least", exerciseVersion: 1, language: "python", action: "run",

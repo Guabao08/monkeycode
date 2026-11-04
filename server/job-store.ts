@@ -3,17 +3,12 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { ApiConfig } from "./config";
-import { executionCost, type ExecutionResult, type Submission } from "./execution/types";
+import { executionCost } from "./execution/types";
+import type { ExecutionResult, Submission, JobView } from "../src/learning/execution";
 
 export const QUARANTINE_MS = 120_000;
 const RETENTION_MS = 24 * 60 * 60 * 1000;
 export type JobState = "queued" | "running" | "finished";
-export interface JobView {
-  id: string;
-  status: "queued" | "running" | "completed";
-  createdAt: string;
-  result?: ExecutionResult;
-}
 interface JobRow { id: string; state: JobState; created_at: number; result: string | null }
 export class AdmissionError extends Error {
   constructor(public readonly status: number, message: string) { super(message); }

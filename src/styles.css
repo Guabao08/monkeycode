@@ -151,6 +151,10 @@ a svg {
   margin-left: 8px;
   flex-wrap: wrap;
 }
+.workspace-button {
+  min-height: 36px;
+  font-size: 12px;
+}
 .icon-button {
   width: 36px;
   height: 36px;
@@ -164,6 +168,9 @@ a svg {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+.main[hidden] {
+  display: none;
 }
 .test-config {
   width: 100%;

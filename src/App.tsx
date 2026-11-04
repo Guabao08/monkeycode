@@ -20,6 +20,7 @@ import Icon from "./Icon";
 import Dialog from "./Dialog";
 import Results from "./Results";
 import type { SpeedSample } from "./Results";
+import Solve from "./Solve";
 
 type Popup =
   | "commands"
@@ -56,6 +57,12 @@ const firstSnippet = selectSnippet(initialPreferences);
 
 export default function App() {
   const [prefs, setPrefs] = useState(initialPreferences);
+  const [workspace, setWorkspace] = useState<"typing" | "solve">(
+    () => window.location.hash === "#solve" ? "solve" : "typing",
+  );
+  const [solveVisited, setSolveVisited] = useState(
+    () => window.location.hash === "#solve",
+  );
   const [appearance, setAppearance] = useState(loadAppearance);
   const [snippet, setSnippet] = useState<Snippet | null>(firstSnippet);
   const [session, setSession] = useState(() =>
@@ -82,6 +89,7 @@ export default function App() {
   const composition = useRef(false);
   const stats = metrics(session, now);
   const active =
+    workspace === "typing" &&
     focused &&
     session.startedAt !== null &&
     !session.complete &&
@@ -97,6 +105,21 @@ export default function App() {
     "--error-color": colors.error,
     "--font-size": `${appearance.fontSize}px`,
   } as CSSProperties;
+
+  function switchWorkspace(next: "typing" | "solve") {
+    setWorkspace(next);
+    if (next === "solve") setSolveVisited(true);
+    setFocused(false);
+    setPopup(null);
+    setNotice("");
+    inputRef.current?.blur();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}${next === "solve" ? "#solve" : ""}`,
+    );
+    if (next === "typing") focusInput();
+  }
 
   function focusInput() {
     requestAnimationFrame(() =>
@@ -291,6 +314,7 @@ export default function App() {
         openPopup("commands");
         return;
       }
+      if (workspace !== "typing") return;
       if (
         popup ||
         !snippet ||
@@ -450,6 +474,17 @@ export default function App() {
 
   const commands = [
     {
+      label: "workspace: typing",
+      icon: "keyboard" as const,
+      action: () => switchWorkspace("typing"),
+    },
+    {
+      label: "workspace: solving",
+      icon: "method" as const,
+      action: () => switchWorkspace("solve"),
+    },
+    ...(workspace === "typing" ? [
+    {
       label: "restart test",
       icon: "restart" as const,
       action: () => {
@@ -492,6 +527,7 @@ export default function App() {
       icon: "method" as const,
       action: () => updatePreferences({ mode: "solution", scope: "full" }),
     },
+    ] : []),
     {
       label: "settings",
       icon: "settings" as const,
@@ -540,6 +576,7 @@ export default function App() {
       className={`app ${active ? "focus-mode" : ""}`}
       style={style}
       data-theme={appearance.theme}
+      data-workspace={workspace}
     >
       <header className="header content-width">
         <button
@@ -547,6 +584,7 @@ export default function App() {
           aria-label="Monkeycode home"
           onClick={() => {
             setPopup(null);
+            switchWorkspace("typing");
             if (snippet) start(snippet);
           }}
         >
@@ -557,15 +595,25 @@ export default function App() {
         </button>
         <nav className="header-nav" aria-label="Main navigation">
           <button
-            className="icon-button"
+            className={`workspace-button ${workspace === "typing" ? "selected" : ""}`}
             aria-label="Typing test"
             title="Typing test"
+            aria-pressed={workspace === "typing"}
             onClick={() => {
-              setPopup(null);
-              focusInput();
+              switchWorkspace("typing");
             }}
           >
-            <Icon name="keyboard" />
+            <Icon name="keyboard" size={14} />
+            type
+          </button>
+          <button
+            className={`workspace-button ${workspace === "solve" ? "selected" : ""}`}
+            aria-label="Solve an exercise"
+            aria-pressed={workspace === "solve"}
+            onClick={() => switchWorkspace("solve")}
+          >
+            <Icon name="method" size={14} />
+            solve
           </button>
           <button
             className="icon-button"
@@ -603,6 +651,7 @@ export default function App() {
       </header>
       <main
         className={`main content-width ${session.complete && snippet ? "show-results" : ""}`}
+        hidden={workspace !== "typing"}
       >
         {!(session.complete && snippet) && (
           <div className="test-config" aria-label="Test configuration">
@@ -849,20 +898,27 @@ export default function App() {
           </div>
         )}
       </main>
+      {solveVisited && (
+        <main className="main content-width solve-main" hidden={workspace !== "solve"}>
+          <Solve active={workspace === "solve"} />
+        </main>
+      )}
       <footer className="footer content-width">
         <div className="shortcuts" id="typing-help">
           <div>
-            <kbd>tab</kbd>
+            <kbd>{workspace === "typing" ? "tab" : "ctrl/cmd"}</kbd>
             <span>+</span>
             <kbd>enter</kbd>
-            <span> - restart test</span>
+            <span>{workspace === "typing" ? " - restart test" : " - run · add shift to submit"}</span>
           </div>
           <div>
             <kbd>esc</kbd>
             <span> - command line</span>
           </div>
           <span className="code-hint">
-            auto indentation · type spaces & newlines
+            {workspace === "typing"
+              ? "auto indentation · type spaces & newlines"
+              : "drafts stay in memory · Run/Submit sends code"}
           </span>
         </div>
         <div className="footer-row">
@@ -897,9 +953,11 @@ export default function App() {
             </button>
             <span
               className="local-version"
-              title="Preferences and results stay in this browser"
+              title={workspace === "typing"
+                ? "Typing preferences and results stay in this browser"
+                : "Solving sends code to OnlineCompiler; attempt metadata stays in this browser"}
             >
-              local · v1.0
+              {workspace === "typing" ? "local · v1.0" : "hosted execution · local history"}
             </span>
           </div>
         </div>
@@ -1217,9 +1275,11 @@ export default function App() {
               <p>
                 The final lexical token must match before finishing; earlier
                 errors may remain. Correcting mistakes does not erase their
-                accuracy penalty. Code is never executed. Preferences and
-                completed results stay in this browser; custom source is not
-                persisted.
+                accuracy penalty. Typing code is never executed, and custom
+                typing source is not persisted. Solving is separate: explicit
+                Run/Submit actions send your method to OnlineCompiler, which
+                retains execution history. Solving drafts and invite tokens
+                stay in memory; only attempt metadata is saved locally.
               </p>
               <p>
                 Independently implemented from{" "}
