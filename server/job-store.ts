@@ -30,18 +30,38 @@ function durableResult(result: ExecutionResult): ExecutionResult {
   return safe;
 }
 
+function acquireOwnership(path: string): DatabaseSync {
+  const lock = new DatabaseSync(path);
+  try {
+    chmodSync(path, 0o600);
+    // A separate database holds an OS-backed lock without blocking job reads.
+    // Unlike PIDs, this lock remains meaningful across container restarts.
+    lock.exec("BEGIN EXCLUSIVE");
+    return lock;
+  } catch (error) {
+    lock.close();
+    if (error instanceof Error && "errcode" in error && (error.errcode === 5 || error.errcode === 6)) {
+      throw new Error("Execution database is already owned by another API process");
+    }
+    throw error;
+  }
+}
+
 export class JobStore {
   private readonly db: DatabaseSync;
-  private readonly owner = randomUUID();
+  private readonly ownership: DatabaseSync;
   private closed = false;
   constructor(private readonly config: ApiConfig) {
     mkdirSync(dirname(config.dbPath), { recursive: true, mode: 0o700 });
-    this.db = new DatabaseSync(config.dbPath);
-    chmodSync(config.dbPath, 0o600);
+    this.ownership = acquireOwnership(`${config.dbPath}.ownership`);
+    let database: DatabaseSync | undefined;
     try {
+      database = new DatabaseSync(config.dbPath);
+      this.db = database;
+      chmodSync(config.dbPath, 0o600);
       this.db.exec(`PRAGMA busy_timeout=5000;
         PRAGMA journal_mode=WAL;
-        CREATE TABLE IF NOT EXISTS ownership (singleton INTEGER PRIMARY KEY CHECK(singleton=1), pid INTEGER NOT NULL, token TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS ownership (singleton INTEGER PRIMARY KEY CHECK(singleton=1));
         CREATE TABLE IF NOT EXISTS occupancy (singleton INTEGER PRIMARY KEY CHECK(singleton=1), occupied_until INTEGER NOT NULL);
         INSERT OR IGNORE INTO occupancy VALUES (1,0);
         CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, invite_id TEXT NOT NULL, state TEXT NOT NULL, created_at INTEGER NOT NULL, result TEXT);
@@ -50,19 +70,19 @@ export class JobStore {
         CREATE TABLE IF NOT EXISTS minute_reservations (created_at INTEGER NOT NULL, cost INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS reservations_created ON minute_reservations(created_at);`);
       this.transaction(() => {
-        const prior = this.db.prepare("SELECT pid FROM ownership WHERE singleton=1").get() as { pid: number } | undefined;
-        if (prior) {
-          let alive = true;
-          try { process.kill(prior.pid, 0); } catch (error) { alive = (error as NodeJS.ErrnoException).code !== "ESRCH"; }
-          if (alive) throw new Error("Execution database is already owned by another API process");
-        }
-        this.db.prepare("INSERT OR REPLACE INTO ownership VALUES (1,?,?)").run(process.pid, this.owner);
+        const prior = this.db.prepare("SELECT singleton FROM ownership WHERE singleton=1").get();
+        const legacy = this.db.prepare("PRAGMA table_info(ownership)").all().some(column => column.name === "pid" || column.name === "token");
+        if (legacy) this.db.exec("DROP TABLE ownership; CREATE TABLE ownership (singleton INTEGER PRIMARY KEY CHECK(singleton=1))");
+        this.db.prepare("INSERT OR REPLACE INTO ownership VALUES (1)").run();
         const unfinished = this.db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE state != 'finished'").get() as { count: number };
         if (prior || unfinished.count > 0) this.quarantine(Date.now());
         this.db.prepare("UPDATE jobs SET state='finished', result=? WHERE state != 'finished'").run(JSON.stringify(unavailableResult));
         this.prune(Date.now());
       });
-    } catch (error) { this.db.close(); throw error; }
+    } catch (error) {
+      try { database?.close(); } finally { this.ownership.close(); }
+      throw error;
+    }
   }
 
   private transaction<T>(operation: () => T): T {
@@ -131,13 +151,16 @@ export class JobStore {
   }
   close(): void {
     if (this.closed) return;
-    this.transaction(() => {
-      const active = this.db.prepare("SELECT id FROM jobs WHERE state != 'finished' LIMIT 1").get();
-      if (active) this.quarantine(Date.now());
-      this.db.prepare("UPDATE jobs SET state='finished',result=? WHERE state != 'finished'").run(JSON.stringify(unavailableResult));
-      this.db.prepare("DELETE FROM ownership WHERE token=?").run(this.owner);
-    });
-    this.closed = true;
-    this.db.close();
+    try {
+      this.transaction(() => {
+        const active = this.db.prepare("SELECT id FROM jobs WHERE state != 'finished' LIMIT 1").get();
+        if (active) this.quarantine(Date.now());
+        this.db.prepare("UPDATE jobs SET state='finished',result=? WHERE state != 'finished'").run(JSON.stringify(unavailableResult));
+        this.db.prepare("DELETE FROM ownership").run();
+      });
+    } finally {
+      this.closed = true;
+      try { this.db.close(); } finally { this.ownership.close(); }
+    }
   }
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -84,6 +84,44 @@ test("configuration requires explicit provider privacy acceptance and unique has
   assert.throws(() => loadConfig({ ...env, MONKEYCODE_INVITES_JSON: JSON.stringify({ alice: "bad" }) }), /32-byte/);
   assert.throws(() => loadConfig({ ...env, MONKEYCODE_ALLOWED_ORIGIN: "*" }), /ORIGIN/);
   assert.throws(() => loadConfig({ ...env, MONKEYCODE_PORT: "0" }), /positive/);
+});
+
+test("Render binding and origin honor explicit overrides and reject invalid platform values", () => {
+  const env = {
+    ONLINECOMPILER_API_KEY: "dummy", ONLINECOMPILER_RETENTION_ACCEPTED: "true",
+    MONKEYCODE_INVITES_JSON: JSON.stringify({ alice: digest(token) }),
+    PORT: "10000", RENDER_EXTERNAL_URL: "https://monkeycode-example.onrender.com",
+  };
+  const platform = loadConfig(env);
+  assert.equal(platform.port, 10000);
+  assert.equal(platform.allowedOrigin, env.RENDER_EXTERNAL_URL);
+  const custom = loadConfig({ ...env, MONKEYCODE_PORT: "4000", MONKEYCODE_ALLOWED_ORIGIN: "https://practice.example.com" });
+  assert.equal(custom.port, 4000);
+  assert.equal(custom.allowedOrigin, "https://practice.example.com");
+  assert.throws(() => loadConfig({ ...env, PORT: "0" }), /PORT/);
+  assert.throws(() => loadConfig({ ...env, RENDER_EXTERNAL_URL: "https://example.com/path" }), /ORIGIN/);
+  assert.throws(() => loadConfig({ ...env, MONKEYCODE_SERVE_WEB: "yes" }), /SERVE_WEB/);
+});
+
+test("production web mode keeps the shell public without weakening API authentication or the execution kill switch", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "monkeycode-web-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(join(directory, "index.html"), "<!doctype html><title>Practice shell</title>");
+  let executions = 0;
+  const api = await fixture(t, { execute: async () => { executions++; return passed; } }, { webRoot: directory, executionEnabled: false });
+  const shell = await api.request("/", {}, null);
+  assert.equal(shell.status, 200);
+  assert.match(shell.headers.get("content-type") ?? "", /^text\/html/);
+  assert.equal(await shell.text(), "<!doctype html><title>Practice shell</title>");
+  assert.equal((await api.request("/api/exercises/first-at-least", {}, null)).status, 401);
+  const unknownApi = await api.request("/api/missing");
+  assert.equal(unknownApi.status, 404);
+  assert.match(unknownApi.headers.get("content-type") ?? "", /^application\/json/);
+  assert.deepEqual(await (await api.request("/healthz", {}, null)).json(), { status: "ok" });
+  assert.equal((await api.request("/api/exercises/first-at-least", { headers: { Origin: "https://untrusted.example" } })).status, 403);
+  assert.equal((await api.request("/api/exercises/first-at-least", { headers: { Origin: api.config.allowedOrigin } })).status, 200);
+  assert.equal((await api.post()).status, 503);
+  assert.equal(executions, 0);
 });
 
 test("auth, invite ownership, minimal health and public-only exercise", async t => {
@@ -291,7 +329,7 @@ test("stale crashed ownership recovers running rows without invoking the executo
   const db = new DatabaseSync(api.config.dbPath);
   try {
     db.prepare("UPDATE jobs SET state='running',result=NULL WHERE id=?").run(job.id);
-    db.prepare("INSERT INTO ownership VALUES (1,2147483647,'crashed-owner')").run();
+    db.prepare("INSERT INTO ownership VALUES (1)").run();
     db.prepare("UPDATE occupancy SET occupied_until=0").run();
   } finally { db.close(); }
   let calls = 0;
@@ -300,6 +338,28 @@ test("stale crashed ownership recovers running rows without invoking the executo
   assert.equal(recovered.result?.status, "service-error");
   assert.equal((await restarted.post()).status, 429);
   assert.equal(calls, 0);
+});
+
+test("legacy crash recovery tolerates PID reuse without replaying work or refunding quota", async t => {
+  const api = await fixture(t);
+  const job = await (await api.post({ ...submission, action: "submit" })).json() as JobView;
+  await completed(api, job.id);
+  await api.server.shutdown();
+  const db = new DatabaseSync(api.config.dbPath);
+  try {
+    db.exec("DROP TABLE ownership; CREATE TABLE ownership (singleton INTEGER PRIMARY KEY CHECK(singleton=1), pid INTEGER NOT NULL, token TEXT NOT NULL)");
+    db.prepare("INSERT INTO ownership VALUES (1,?,'crashed-container')").run(process.pid);
+    db.prepare("UPDATE jobs SET state='running',result=NULL WHERE id=?").run(job.id);
+  } finally { db.close(); }
+  let calls = 0;
+  const restarted = await api.start({ execute: async () => { calls++; return passed; } });
+  const recovered = await (await restarted.request(`/api/jobs/${job.id}`)).json() as JobView;
+  assert.equal(recovered.result?.status, "service-error");
+  assert.equal((await restarted.post()).status, 429);
+  assert.equal(calls, 0);
+  const persisted = new DatabaseSync(api.config.dbPath);
+  try { assert.equal(storedNumber(persisted, "SELECT count FROM counters WHERE scope='month'"), 9); }
+  finally { persisted.close(); }
 });
 
 test("completed results expire after24h while current budget counters remain", async t => {

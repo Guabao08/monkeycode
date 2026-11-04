@@ -9,6 +9,7 @@ export interface ApiConfig {
   dbPath: string;
   host: string;
   port: number;
+  webRoot?: string;
   inviteDailyLimit: number;
   globalDailyLimit: number;
   monthlyRunLimit: number;
@@ -52,7 +53,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     seen.add(normalized);
     return { id, digest: Buffer.from(normalized, "hex") };
   });
-  const allowedOrigin = env.MONKEYCODE_ALLOWED_ORIGIN ?? "http://127.0.0.1:5173";
+  const allowedOrigin = env.MONKEYCODE_ALLOWED_ORIGIN ?? env.RENDER_EXTERNAL_URL ?? "http://127.0.0.1:5173";
   let origin: URL;
   try { origin = new URL(allowedOrigin); } catch { throw new Error("Invalid MONKEYCODE_ALLOWED_ORIGIN"); }
   if (!["http:", "https:"].includes(origin.protocol) || origin.origin !== allowedOrigin) throw new Error("MONKEYCODE_ALLOWED_ORIGIN must be one exact HTTP(S) origin");
@@ -63,7 +64,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     apiKey, retentionAccepted: true,
     executionEnabled: boolean(env, "MONKEYCODE_EXECUTION_ENABLED", false),
     invites, allowedOrigin, dbPath: resolve(dbPath), host,
-    port: integer(env, "MONKEYCODE_PORT", 3001, 65535),
+    webRoot: boolean(env, "MONKEYCODE_SERVE_WEB", false) ? resolve("dist") : undefined,
+    port: integer(env, env.MONKEYCODE_PORT !== undefined ? "MONKEYCODE_PORT" : "PORT", 3001, 65535),
     inviteDailyLimit: integer(env, "MONKEYCODE_INVITE_DAILY_LIMIT", 30),
     globalDailyLimit: integer(env, "MONKEYCODE_GLOBAL_DAILY_LIMIT", 300),
     monthlyRunLimit: integer(env, "MONKEYCODE_MONTHLY_RUN_LIMIT", 90000),

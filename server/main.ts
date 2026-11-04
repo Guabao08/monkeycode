@@ -1,9 +1,11 @@
+import { resolve } from "node:path";
 import { createApi } from "./api";
 import { loadConfig } from "./config";
 import { OnlineCompilerExecutor } from "./execution/onlinecompiler";
 
 try {
   const config = loadConfig();
+  if (process.argv.includes("--serve-web")) config.webRoot = resolve("dist");
   const server = createApi(config, new OnlineCompilerExecutor(config.apiKey));
   let stopping = false;
   const stop = async (exitCode: number) => {

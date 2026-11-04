@@ -6,6 +6,7 @@ import type { ApiConfig } from "./config";
 import type { Executor } from "./execution/types";
 import type { ExecutionResult, Submission } from "../src/learning/execution";
 import { AdmissionError, JobStore, unavailableResult } from "./job-store";
+import { createStaticHandler } from "./static";
 
 export type ApiServer = Server & { shutdown(): Promise<void> };
 const MAX_BODY = 40 * 1024;
@@ -80,6 +81,7 @@ function sanitizeResult(value: ExecutionResult, config: ApiConfig): ExecutionRes
 }
 
 export function createApi(config: ApiConfig, executor: Executor): ApiServer {
+  const serveWeb = config.webRoot ? createStaticHandler(config.webRoot) : undefined;
   const store = new JobStore(config);
   let stopping = false;
   const volatileResults = new Map<string, { result: ExecutionResult; expires: number }>();
@@ -97,6 +99,11 @@ export function createApi(config: ApiConfig, executor: Executor): ApiServer {
     response.end(JSON.stringify(body));
   }
   async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const target = request.url ?? "";
+    if (serveWeb && target !== "/healthz" && target !== "/api" && !target.startsWith("/api/")) {
+      await serveWeb(request, response);
+      return;
+    }
     response.setHeader("Cache-Control", "no-store");
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Vary", "Origin");
