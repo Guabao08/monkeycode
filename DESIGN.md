@@ -172,6 +172,14 @@ Large WPM and accuracy sit beside an SVG chart of recorded correct/raw speed sam
 
 Native accessible dialogs host searchable command line, settings, themes, local history, custom import, source/reference, typed-code review and about. Import fields use alternate background, text color and main-colored caret. Command rows invert to text/background on hover or focus. History is a flat scrollable table, not a collection of cards. Empty custom/filter states offer direct recovery actions; notices use status messaging.
 
+### Solve workspace
+
+Solve is an Operate surface: the problem and public examples occupy the smaller desktop column; a larger, unboxed implementation editor occupies the other. A single vertical rule separates the tasks without introducing cards. At 960px and below, the columns stack and the divider becomes horizontal. Long code scrolls within the editor, never across the page.
+
+Use native details/summary disclosures for constraints, example explanations, editor help, practice options, execution access and local attempts. Keep the initial view focused on reading and editing. Run examples is the primary practice action; Submit is secondary. Costs and the upload/retention warning remain visible. Execution errors, uncertain admissions, pending-job recovery, storage failures and results stay in the normal visible flow.
+
+Retain the established theme and 12/14/16/24px type steps. Secondary Solve copy blends 78% foreground with the page background rather than using the lower-contrast typing-placeholder color. This hierarchy follows [NN/g's progressive disclosure guidance](https://www.nngroup.com/articles/progressive-disclosure/) and [VS Code's separation of editor, contextual actions and supporting output](https://code.visualstudio.com/api/ux-guidelines/overview); it does not copy their implementation.
+
 ### Keyboard interaction
 
 Escape opens the command line when no dialog is open; Escape closes an open dialog. Command search supports arrows and Enter. Tab then Enter restarts through the focused restart control; Ctrl/Cmd+Enter restarts from the typing input. Tab otherwise remains normal control navigation. Leading indentation is automatic; internal spaces and Enter/newlines remain manual. Timing does not pause when focus leaves.

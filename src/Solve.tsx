@@ -289,37 +289,37 @@ export default function Solve({ active }: { active: boolean }) {
           <h1 id="solve-title">{exercise.title}</h1>
           <p className="solve-statement">{exercise.statement}</p>
           <h2>Examples</h2>
-          <ol className="solve-examples">
-            {exercise.examples.map((example, index) => (
-              <li key={index}>
-                <code>values = {readable(example.input.values)}<br />target = {example.input.target} → {example.expected}</code>
-                <p>{example.explanation}</p>
-              </li>
-            ))}
-          </ol>
-          <h2>Constraints</h2>
-          <ul className="solve-constraints">{exercise.constraints.map((constraint) => <li key={constraint}>{constraint}</li>)}</ul>
-          <p>Target: {exercise.requirements.time} time, {exercise.requirements.auxiliarySpace} extra space.</p>
-          <p className="solve-fine">Functional checks do not verify time or space complexity.</p>
+          <div className="solve-table-scroll solve-examples">
+            <table>
+              <caption className="solve-visually-hidden">Public example inputs and expected outputs</caption>
+              <thead><tr><th>Values</th><th>Target</th><th>Returns</th></tr></thead>
+              <tbody>{exercise.examples.map((example, index) => (
+                <tr key={index}>
+                  <td><details className="solve-example-detail"><summary><code>{readable(example.input.values)}</code></summary><p>{example.explanation}</p></details></td>
+                  <td><code>{example.input.target}</code></td>
+                  <td><code>{example.expected}</code></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <details className="solve-disclosure solve-constraints">
+            <summary>Constraints &amp; complexity</summary>
+            <ul>{exercise.constraints.map((constraint) => <li key={constraint}>{constraint}</li>)}</ul>
+            <p>Target: {exercise.requirements.time} time, {exercise.requirements.auxiliarySpace} extra space.</p>
+            <p className="solve-fine">Functional checks do not verify time or space complexity.</p>
+          </details>
         </section>
 
         <section className="solve-editor-section" aria-label="Implementation editor">
           <div className="solve-editor-toolbar">
+            <span className="solve-editor-caption">Implementation</span>
             <div className="solve-languages" role="group" aria-label="Implementation language">
               {(["python", "java"] as const).map((value) => (
                 <button key={value} type="button" aria-pressed={language === value} onClick={() => setLanguage(value)}>{languageName(value)}</button>
               ))}
             </div>
-          <div className="solve-context">
-            <label htmlFor="solve-activity">Activity</label>
-            <select id="solve-activity" value={activity} onChange={(event) => setActivity(event.target.value as Activity)}>
-              <option value="practice">Practice</option>
-              <option value="independent-check">Independent check</option>
-            </select>
           </div>
-          </div>
-          <p id="solve-method-help" className="solve-method-help">{exercise.implementations[language].instructions}</p>
-          <label className="solve-editor-label" htmlFor="solve-code">Your {languageName(language)} implementation</label>
+          <label className="solve-visually-hidden" htmlFor="solve-code">Your {languageName(language)} implementation</label>
           <textarea
             id="solve-code"
             className="solve-code"
@@ -333,28 +333,42 @@ export default function Solve({ active }: { active: boolean }) {
             wrap="off"
             aria-describedby="solve-method-help solve-key-help"
           />
-          <p id="solve-key-help" className="solve-fine solve-key-help">Tab moves to the next control. Ctrl/Cmd+Enter runs examples; add Shift to submit. Use spaces for indentation.</p>
+          <div className="solve-editor-meta">
+            <details className="solve-disclosure">
+              <summary>Editor help</summary>
+              <p id="solve-method-help">{exercise.implementations[language].instructions}</p>
+              <p id="solve-key-help">Tab moves to the next control. Ctrl/Cmd+Enter runs examples; add Shift to submit. Use spaces for indentation.</p>
+            </details>
+            <details className="solve-disclosure solve-context-details">
+              <summary>Practice options</summary>
+              <div className="solve-context">
+                <label htmlFor="solve-activity">Activity</label>
+                <select id="solve-activity" value={activity} onChange={(event) => setActivity(event.target.value as Activity)}>
+                  <option value="practice">Practice</option>
+                  <option value="independent-check">Independent check</option>
+                </select>
+              </div>
+              <p>{initial.storageIssue ? "Prior exposure could not be read reliably. Do not treat this as an unseen check." : previouslySeen ? "Prior practice or a visit to this exercise is recorded: this is not an unseen check." : "No prior visit is recorded in this browser; that does not establish an unseen check."} History cannot certify independence. Only in-app help is recorded; external help is not tracked.</p>
+              <p>Run checks public examples; Submit adds private checks. Requests are never automatically retried.</p>
+            </details>
+          </div>
 
-
-          <form className="solve-connect" onSubmit={(event) => { event.preventDefault(); void connect(); }}>
-            <label htmlFor="solve-invite">Execution invite</label>
+          <details className="solve-disclosure solve-access">
+            <summary>{verifiedToken ? "Execution connected" : "Connect an invite to run code"}</summary>
+            <form className="solve-connect" onSubmit={(event) => { event.preventDefault(); void connect(); }}>
+              <label htmlFor="solve-invite">Execution invite</label>
             <div className="solve-connect-controls">
               <input id="solve-invite" type="password" value={invite} autoComplete="off" autoCapitalize="off" spellCheck={false} placeholder="Enter your invite" onChange={(event) => { invalidateConnection(); setInvite(event.target.value); }} />
               {verifiedToken ? <button type="button" onClick={() => invalidateConnection(true)}>Disconnect</button> : <button type="submit" disabled={connecting || !invite.trim()}>{connecting ? "Connecting…" : "Connect"}</button>}
             </div>
-            <p className="solve-fine" role="status">{verifiedToken ? "Connected · invite kept only in memory." : "Not connected · you can edit without an invite."} {connectionNotice}</p>
-          </form>
-
-          <p className="solve-privacy"><strong>Run/Submit uploads code:</strong> OnlineCompiler retains execution history. Do not include secrets. Drafts and invites stay in memory; typing practice remains local.</p>
+            </form>
+          </details>
+          <p className="solve-connection-status" role="status">{connecting ? "Checking invite…" : connectionNotice || (verifiedToken ? "Connected · invite kept only in memory." : "")}</p>
           <div className="solve-execution-controls">
             <button className="solve-run" type="button" disabled={executionDisabled} onClick={() => { void execute("run"); }}>Run examples <span>1 reserved unit</span></button>
             <button className="solve-submit" type="button" disabled={executionDisabled} onClick={() => { void execute("submit"); }}>Submit <span>9 reserved units</span></button>
           </div>
-          <p className="solve-fine">Run checks public examples. Submit adds private checks. Reservations are not refunded; no automatic retries.</p>
-          <details className="solve-context-details">
-            <summary>Attempt context</summary>
-            <p>{initial.storageIssue ? "Prior exposure could not be read reliably. Do not treat this as an unseen check." : previouslySeen ? "Prior practice or a visit to this exercise is recorded: this is not an unseen check." : "No prior visit is recorded in this browser; that does not establish an unseen check."} History cannot certify independence. Only in-app help is recorded; external help is not tracked.</p>
-          </details>
+          <p className="solve-privacy">Run/Submit uploads code to OnlineCompiler, which retains execution history. Reservations are nonrefundable; never include secrets.</p>
 
           {(posting || pending) && <div className="solve-job" role="status">
             <p>{posting ? "Sending one request…" : `${jobStatus === "running" ? "Running" : "Queued or awaiting a status check"} · ${languageName(pending!.conditions.language)} · ${pending!.action === "run" ? "public examples" : "private checks"}`}</p>
@@ -389,10 +403,10 @@ export default function Solve({ active }: { active: boolean }) {
         </section>
       </div>
 
-      <section className="solve-history" aria-labelledby="solve-history-title">
-        <h2 id="solve-history-title">Local attempts</h2>
-        <p className="solve-fine">Source-free metadata only, up to 100 recent attempts in this browser. No code, invite, notes or diagnostics are stored. Clearing browser storage removes this record.</p>
-        {storageFailed && <p className="solve-notice" role="status">Browser storage could not be read or saved reliably. Practice can continue, but attempts and pending-job recovery may not survive reload. Missing records cannot establish that an exercise is unseen.</p>}
+      {storageFailed && <p className="solve-notice" role="status">Browser storage could not be read or saved reliably. Practice can continue, but attempts and pending-job recovery may not survive reload. Missing records cannot establish that an exercise is unseen.</p>}
+      <details className="solve-history">
+        <summary>Local attempts <span>{progress.attempts.length} recorded</span></summary>
+        <p className="solve-fine">Up to 100 source-free attempts in this browser. Drafts, invites, notes and diagnostics are not saved. Clearing browser storage removes this record; refreshing clears your draft and invite.</p>
         {progress.attempts.length === 0 ? <p className="solve-history-empty">No completed attempts recorded here yet.</p> : <div className="solve-table-scroll"><table>
           <caption className="solve-visually-hidden">Recorded execution attempts and context</caption>
           <thead><tr><th>Action / language</th><th>Outcome</th><th>Completed</th><th>Recorded context</th></tr></thead>
@@ -403,7 +417,7 @@ export default function Solve({ active }: { active: boolean }) {
             <td>{attempt.conditions.activity}; {attempt.conditions.previouslySeen ? "prior visit recorded" : "no prior visit recorded"}; {attempt.conditions.assistance.length ? `in-app help: ${attempt.conditions.assistance.join(", ")}` : "no in-app help recorded"}</td>
           </tr>)}</tbody>
         </table></div>}
-      </section>
+      </details>
     </section>
   );
 }

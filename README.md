@@ -60,6 +60,8 @@ The local checkers execute **only repository-authored code**, use temporary file
 
 Learner code executes only on [OnlineCompiler's native test service](https://onlinecompiler.io/docs/run-tests), never in the Edge Function or a local child process. The provider [retains source, inputs and outputs](https://onlinecompiler.io/privacy) in account execution history: **this is not zero-retention execution**. Do not submit secrets.
 
+Solve uses a problem/editor split on desktop and stacks on narrow screens. Public examples remain visible; expand their input rows for explanations. Constraints, editor help, practice options and local attempts expand on demand. Open **Connect an invite to run code** to authorize execution; editing needs no invite. Run/Submit costs and the provider-retention warning remain beside the actions. Errors, pending-job recovery and result feedback are never hidden inside these disclosures.
+
 ### Local execution development
 
 Install Deno 2 and start Docker. The Supabase and Wrangler CLIs are development dependencies.
